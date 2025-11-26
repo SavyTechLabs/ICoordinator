@@ -7,11 +7,14 @@
     <link rel="stylesheet" href="css/style.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
     <!-- SheetJS (XLSX) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Translations -->
+    <script src="js/translations.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -21,45 +24,88 @@
                 <h1>ICoordinator</h1>
             </div>
             
-            <div class="panel-section">
-                <h2>Filer</h2>
-                <div class="file-input-group">
-                    <label for="layout-upload" class="btn btn-primary full-width">
-                        📂 Ladda upp Layout (PDF/Bild)
-                    </label>
-                    <input type="file" id="layout-upload" accept="image/*,.pdf" hidden>
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" data-tab="files" title="Filer" data-i18n-title="files">
+                    <span class="material-icons">folder</span>
+                </button>
+                <button class="tab-btn" data-tab="tools" title="Verktyg" data-i18n-title="tools">
+                    <span class="material-icons">build</span>
+                </button>
+                <button class="tab-btn" data-tab="activities" title="Aktiviteter" data-i18n-title="activities">
+                    <span class="material-icons">list</span>
+                </button>
+                <button class="tab-btn" data-tab="settings" title="Inställningar" data-i18n-title="settings">
+                    <span class="material-icons">settings</span>
+                </button>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- Files Tab -->
+                <div id="tab-files" class="tab-pane active">
+                    <h2 data-i18n="files">Filer</h2>
+                    <div class="file-input-group">
+                        <label for="layout-upload" class="btn btn-primary full-width">
+                            <span class="material-icons">upload_file</span> <span data-i18n="uploadLayout">Ladda upp Layout</span>
+                        </label>
+                        <input type="file" id="layout-upload" accept="image/*,.pdf" hidden>
+                    </div>
+                    
+                    <div class="file-input-group">
+                        <label for="schedule-upload" class="btn btn-secondary full-width">
+                            <span class="material-icons">table_chart</span> <span data-i18n="importSchedule">Importera Tidplan</span>
+                        </label>
+                        <input type="file" id="schedule-upload" accept=".xlsx,.xls" hidden>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="file-input-group">
+                        <button id="btn-export-json" class="btn btn-outline full-width">
+                            <span class="material-icons">save</span> <span data-i18n="exportProject">Exportera Projekt</span>
+                        </button>
+                        <button id="btn-import-json" class="btn btn-outline full-width" onclick="document.getElementById('json-upload').click()">
+                            <span class="material-icons">file_open</span> <span data-i18n="importProject">Importera Projekt</span>
+                        </button>
+                        <input type="file" id="json-upload" accept=".json" hidden>
+                    </div>
+                </div>
+
+                <!-- Tools Tab -->
+                <div id="tab-tools" class="tab-pane">
+                    <h2 data-i18n="tools">Verktyg</h2>
+                    <div class="tools-grid">
+                        <button id="tool-select" class="tool-btn active" title="Markera/Flytta" data-i18n-title="select">
+                            <span class="material-icons">near_me</span>
+                            <span data-i18n="select">Markera</span>
+                        </button>
+                        <button id="tool-draw" class="tool-btn" title="Rita Rektangel" data-i18n-title="rectangle">
+                            <span class="material-icons">crop_square</span>
+                            <span data-i18n="rectangle">Rektangel</span>
+                        </button>
+                        <button id="tool-poly" class="tool-btn" title="Rita Polygon" data-i18n-title="polygon">
+                            <span class="material-icons">polyline</span>
+                            <span data-i18n="polygon">Polygon</span>
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="file-input-group">
-                    <label for="schedule-upload" class="btn btn-secondary full-width">
-                        📅 Importera Tidplan (Excel)
-                    </label>
-                    <input type="file" id="schedule-upload" accept=".xlsx,.xls" hidden>
+                <!-- Activities Tab -->
+                <div id="tab-activities" class="tab-pane">
+                    <h2 data-i18n="activities">Aktiviteter</h2>
+                    <div class="search-container" style="margin-bottom: 10px;">
+                        <input type="text" id="activity-search" placeholder="Sök aktiviteter..." class="search-input full-width" data-i18n-placeholder="searchPlaceholder">
+                    </div>
+                    <div id="schedule-list" class="schedule-list">
+                        <p class="text-muted small" style="padding: 0.5rem; color: var(--text-muted);" data-i18n="importExcelHint">Importera en Excel-fil för att se aktiviteter här.</p>
+                    </div>
                 </div>
 
-                <div class="file-input-group">
-                    <button id="btn-export-json" class="btn btn-outline full-width">💾 Exportera Projekt (JSON)</button>
-                    <button id="btn-import-json" class="btn btn-outline full-width" onclick="document.getElementById('json-upload').click()">📥 Importera Projekt (JSON)</button>
-                    <input type="file" id="json-upload" accept=".json" hidden>
-                </div>
-            </div>
-
-            <div class="panel-section">
-                <h2>Verktyg</h2>
-                <div class="tools-grid">
-                    <button id="tool-select" class="tool-btn active" title="Markera/Flytta">
-                        <span class="icon">👆</span>
+                <!-- Settings Tab -->
+                <div id="tab-settings" class="tab-pane">
+                    <h2 data-i18n="settings">Inställningar</h2>
+                    <button id="btn-settings" class="btn btn-outline full-width">
+                        <span class="material-icons">tune</span> <span data-i18n="projectSettings">Projektinställningar</span>
                     </button>
-                    <button id="tool-draw" class="tool-btn" title="Rita Zon">
-                        <span class="icon">✏️</span>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="panel-section" style="flex: 1; overflow-y: auto; min-height: 0;">
-                <h2>Aktiviteter</h2>
-                <div id="schedule-list" class="schedule-list">
-                    <p class="text-muted small" style="padding: 0.5rem; color: var(--text-muted);">Importera en Excel-fil för att se aktiviteter här.</p>
                 </div>
             </div>
         </aside>
@@ -69,10 +115,25 @@
             <div id="canvas-wrapper" class="canvas-wrapper">
                 <canvas id="main-canvas"></canvas>
                 <div id="empty-state" class="empty-state">
-                    <p>Ladda upp en layout för att börja planera</p>
+                    <p data-i18n="uploadLayoutPrompt">Ladda upp en layout för att börja planera</p>
+                </div>
+                
+                <!-- Legend / View Filter -->
+                <div id="view-legend" class="view-legend">
+                    <div class="legend-header">
+                        <select id="view-mode-select" class="view-select">
+                            <option value="discipline" data-i18n="viewDiscipline">Visa: Disciplin</option>
+                            <option value="status" data-i18n="viewStatus">Visa: Status</option>
+                        </select>
+                    </div>
+                    <div id="legend-items" class="legend-items">
+                        <!-- Items injected by JS -->
+                    </div>
                 </div>
             </div>
             <div class="canvas-controls">
+                <button id="zoom-fit" class="icon-btn" title="Zooma till allt" data-i18n-title="zoomFit">⤢</button>
+                <div style="width: 1px; height: 20px; background: #ccc; margin: 0 5px;"></div>
                 <button id="zoom-in" class="icon-btn">+</button>
                 <span id="zoom-level">100%</span>
                 <button id="zoom-out" class="icon-btn">-</button>
@@ -82,65 +143,145 @@
         <!-- Right Sidebar: Metadata -->
         <aside class="sidebar right-sidebar">
             <div class="panel-header">
-                <h2>Zon Egenskaper</h2>
+                <h2 data-i18n="zoneProperties">Zon Egenskaper</h2>
             </div>
             
             <div id="metadata-content" class="metadata-content hidden">
                 <div class="form-group">
-                    <label>ID</label>
+                    <label data-i18n="id">ID</label>
                     <input type="text" id="meta-id" readonly class="input-readonly">
                 </div>
 
                 <div class="form-group">
-                    <label>Namn / Zon</label>
-                    <input type="text" id="meta-name" placeholder="Namnge zonen...">
+                    <label data-i18n="nameZone">Namn / Zon</label>
+                    <input type="text" id="meta-name" placeholder="Namnge zonen..." data-i18n-placeholder="nameZonePlaceholder">
                 </div>
 
                 <div class="form-group">
-                    <label>Disciplin</label>
+                    <label data-i18n="discipline">Disciplin</label>
                     <select id="meta-discipline">
-                        <option value="">Välj disciplin...</option>
-                        <option value="construction">Bygg</option>
-                        <option value="electrical">El</option>
-                        <option value="plumbing">VVS</option>
-                        <option value="ventilation">Ventilation</option>
+                        <option value="" data-i18n="selectDiscipline">Välj disciplin...</option>
+                        <!-- Options populated dynamically -->
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>Status</label>
+                    <label data-i18n="status">Status</label>
                     <select id="meta-status">
-                        <option value="planned">Planerad</option>
-                        <option value="in-progress">Pågående</option>
-                        <option value="completed">Klar</option>
-                        <option value="delayed">Försenad</option>
+                        <!-- Options populated dynamically -->
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>Färg</label>
+                    <label data-i18n="color">Färg</label>
                     <input type="color" id="meta-color" class="color-input">
                 </div>
 
                 <div class="form-group">
-                    <label>Kommentarer</label>
+                    <label data-i18n="comments">Kommentarer</label>
                     <textarea id="meta-comments" rows="4"></textarea>
+                </div>
+
+                <div id="connected-activity-section" class="hidden">
+                    <div class="divider"></div>
+                    <h3 data-i18n="connectedActivity">Kopplad Aktivitet</h3>
+                    <div id="connected-activities-list">
+                        <!-- Activities populated dynamically -->
+                    </div>
                 </div>
 
                 <div class="divider"></div>
                 
-                <h3>Anpassade Fält</h3>
+                <h3 data-i18n="customFields">Anpassade Fält</h3>
                 <div id="custom-fields-container"></div>
-                <button id="btn-add-field" class="btn btn-small btn-text">+ Lägg till fält</button>
+                <button id="btn-add-field" class="btn btn-small btn-text" data-i18n="addField">+ Lägg till fält</button>
 
                 <div class="divider"></div>
-                <button id="btn-delete-zone" class="btn btn-danger full-width">Ta bort Zon</button>
+                <button id="btn-delete-zone" class="btn btn-danger full-width" data-i18n="deleteZone">Ta bort Zon</button>
             </div>
 
             <div id="metadata-empty" class="metadata-empty">
-                <p>Markera en zon för att redigera egenskaper</p>
+                <p data-i18n="selectZoneToEdit">Markera en zon för att redigera egenskaper</p>
             </div>
         </aside>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="settingsTitle">Projektinställningar</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3 data-i18n="language">Språk</h3>
+                    <select id="settings-language" class="full-width" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <option value="sv">Svenska</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="settings-section">
+                    <h3 data-i18n="zoneNaming">Namngivning av Zoner</h3>
+                    <select id="settings-zone-naming" class="full-width" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <option value="activity" data-i18n="zoneNameActivity">Använd aktivitetsnamn</option>
+                        <option value="manual" data-i18n="zoneNameManual">Manuell namngivning</option>
+                    </select>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="settings-section">
+                    <h3 data-i18n="disciplines">Discipliner</h3>
+                    <div id="settings-disciplines-list" class="settings-list"></div>
+                    <button id="btn-add-discipline" class="btn btn-small btn-primary" data-i18n="addDiscipline">+ Lägg till Disciplin</button>
+                </div>
+                
+                <div class="divider"></div>
+
+                <div class="settings-section">
+                    <h3 data-i18n="statuses">Statusar</h3>
+                    <div id="settings-statuses-list" class="settings-list"></div>
+                    <button id="btn-add-status" class="btn btn-small btn-primary" data-i18n="addStatus">+ Lägg till Status</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Excel Mapping Modal -->
+    <div id="mapping-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="mapColumns">Mappa Excel-kolumner</h2>
+                <button class="close-modal" id="close-mapping-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small" style="margin-bottom: 1rem;" data-i18n="mapHint">Välj vilken kolumn i din Excel-fil som motsvarar fälten nedan.</p>
+                
+                <div class="form-group">
+                    <label data-i18n="activityCode">Aktivitetskod (ID)</label>
+                    <select id="map-code"></select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="activityName">Aktivitetsnamn (Rubrik)</label>
+                    <select id="map-title"></select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="startDate">Startdatum</label>
+                    <select id="map-start"></select>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="endDate">Slutdatum</label>
+                    <select id="map-end"></select>
+                </div>
+
+                <div class="divider"></div>
+                <button id="btn-confirm-import" class="btn btn-primary full-width" data-i18n="import">Importera</button>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
