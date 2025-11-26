@@ -659,6 +659,100 @@ body {
     border: 1px solid rgba(0,0,0,0.1);
 }
 
+/* Layout Tabs */
+.layout-tabs-container {
+    display: flex;
+    align-items: center;
+    background-color: #e2e8f0;
+    padding: 4px 8px 0 8px;
+    border-bottom: 1px solid var(--border-color);
+    height: 40px;
+}
+
+.layout-tabs {
+    display: flex;
+    overflow-x: auto;
+    flex: 1;
+    gap: 4px;
+}
+
+.layout-tab {
+    padding: 6px 12px;
+    background-color: #cbd5e1;
+    border-radius: 6px 6px 0 0;
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
+    transition: background-color 0.2s;
+    min-width: 100px;
+    justify-content: space-between;
+}
+
+.layout-tab:hover {
+    background-color: #dbeafe;
+}
+
+.layout-tab.active {
+    background-color: var(--bg-panel);
+    color: var(--primary-color);
+    font-weight: 600;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
+}
+
+.layout-tab .close-tab {
+    font-size: 14px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    opacity: 0.6;
+}
+
+.layout-tab .close-tab:hover {
+    background-color: rgba(0,0,0,0.1);
+    opacity: 1;
+}
+
+.btn-icon-small {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+}
+
+.btn-icon-small:hover {
+    background-color: rgba(0,0,0,0.05);
+    color: var(--primary-color);
+}
+
+/* Adjust Canvas Area to fit tabs */
+.canvas-area {
+    display: flex;
+    flex-direction: column;
+    background-color: #e2e8f0; /* Match tab container bg */
+}
+
+.canvas-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--bg-canvas);
+    /* Ensure canvas wrapper takes remaining height */
+}
+
 /* Responsive adjustments */
 @media (max-width: 1024px) {
     .app-container {

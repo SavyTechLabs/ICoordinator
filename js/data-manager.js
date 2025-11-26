@@ -11,7 +11,7 @@ class DataManager {
                 created: new Date().toISOString(),
                 lastModified: new Date().toISOString()
             },
-            zones: [], // Array of zone objects
+            // Global Data
             customFields: [], // Array of custom field definitions
             schedule: [], // Imported schedule data
             disciplines: [
@@ -28,7 +28,20 @@ class DataManager {
             ],
             viewMode: 'discipline', // 'discipline' or 'status'
             language: 'sv', // 'sv' or 'en'
-            zoneNameMode: 'activity' // 'activity' or 'manual'
+            zoneNameMode: 'activity', // 'activity' or 'manual'
+            
+            // Layouts Management
+            activeLayoutId: 'default',
+            layouts: [
+                {
+                    id: 'default',
+                    name: 'Layout 1',
+                    zones: [],
+                    backgroundImage: null,
+                    scale: 1,
+                    pan: { x: 0, y: 0 }
+                }
+            ]
         };
         
         this.listeners = [];
@@ -41,11 +54,23 @@ class DataManager {
         return this.state;
     }
 
+    getActiveLayout() {
+        return this.state.layouts.find(l => l.id === this.state.activeLayoutId) || this.state.layouts[0];
+    }
+
     setState(newState) {
         this.state = { ...this.state, ...newState };
         this.state.projectInfo.lastModified = new Date().toISOString();
         this.notifyListeners();
         this.saveToStorage();
+    }
+
+    updateActiveLayout(layoutUpdates) {
+        const activeId = this.state.activeLayoutId;
+        const newLayouts = this.state.layouts.map(l => 
+            l.id === activeId ? { ...l, ...layoutUpdates } : l
+        );
+        this.setState({ layouts: newLayouts });
     }
 
     setLanguage(lang) {
@@ -54,6 +79,10 @@ class DataManager {
 
     setZoneNameMode(mode) {
         this.setState({ zoneNameMode: mode });
+    }
+
+    setBackgroundImage(dataUrl) {
+        this.updateActiveLayout({ backgroundImage: dataUrl });
     }
 
     setViewMode(mode) {
@@ -71,24 +100,29 @@ class DataManager {
     // --- Zone Management ---
 
     addZone(zone) {
-        const newZones = [...this.state.zones, zone];
-        this.setState({ zones: newZones });
+        const layout = this.getActiveLayout();
+        const newZones = [...layout.zones, zone];
+        this.updateActiveLayout({ zones: newZones });
     }
 
     updateZone(updatedZone) {
-        const newZones = this.state.zones.map(z => 
+        const layout = this.getActiveLayout();
+        const newZones = layout.zones.map(z => 
             z.id === updatedZone.id ? updatedZone : z
         );
-        this.setState({ zones: newZones });
+        this.updateActiveLayout({ zones: newZones });
     }
 
     deleteZone(zoneId) {
-        const newZones = this.state.zones.filter(z => z.id !== zoneId);
-        this.setState({ zones: newZones });
+        const layout = this.getActiveLayout();
+        const newZones = layout.zones.filter(z => z.id !== zoneId);
+        this.updateActiveLayout({ zones: newZones });
     }
 
     getZone(zoneId) {
-        return this.state.zones.find(z => z.id === zoneId);
+        // Search in active layout first, but technically we might want to search all if we had global IDs
+        // For now, assume interaction is only with active layout
+        return this.getActiveLayout().zones.find(z => z.id === zoneId);
     }
 
     // --- Custom Fields ---
@@ -153,7 +187,30 @@ class DataManager {
         try {
             const data = localStorage.getItem('icoordinator_data');
             if (data) {
-                const loadedState = JSON.parse(data);
+                let loadedState = JSON.parse(data);
+                
+                // Migration: If old structure (zones at root), move to default layout
+                if (loadedState.zones && !loadedState.layouts) {
+                    console.log("Migrating legacy state to multi-layout structure...");
+                    loadedState = {
+                        ...loadedState,
+                        activeLayoutId: 'default',
+                        layouts: [
+                            {
+                                id: 'default',
+                                name: 'Layout 1',
+                                zones: loadedState.zones || [],
+                                backgroundImage: loadedState.backgroundImage || null,
+                                scale: 1,
+                                pan: { x: 0, y: 0 }
+                            }
+                        ]
+                    };
+                    // Remove legacy root properties
+                    delete loadedState.zones;
+                    delete loadedState.backgroundImage;
+                }
+
                 // Merge loaded state with default state to ensure new fields exist
                 this.state = { ...this.state, ...loadedState };
                 
@@ -174,6 +231,19 @@ class DataManager {
                         { id: 'delayed', name: 'Försenad', color: '#EF4444' }
                     ];
                 }
+                
+                // Ensure layouts exist if somehow missing after merge
+                if (!this.state.layouts || this.state.layouts.length === 0) {
+                     this.state.layouts = [{
+                        id: 'default',
+                        name: 'Layout 1',
+                        zones: [],
+                        backgroundImage: null,
+                        scale: 1,
+                        pan: { x: 0, y: 0 }
+                    }];
+                    this.state.activeLayoutId = 'default';
+                }
             }
         } catch (e) {
             console.error("Failed to load from localStorage", e);
@@ -182,11 +252,17 @@ class DataManager {
 
     // --- Import/Export ---
 
-    exportProject() {
+    exportProject(filename = "icoordinator_project.json") {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state, null, 2));
         const downloadAnchorNode = document.createElement('a');
         downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", "icoordinator_project.json");
+        
+        // Ensure extension
+        if (!filename.toLowerCase().endsWith('.json')) {
+            filename += '.json';
+        }
+        
+        downloadAnchorNode.setAttribute("download", filename);
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
@@ -197,7 +273,29 @@ class DataManager {
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
-                    const importedState = JSON.parse(event.target.result);
+                    let importedState = JSON.parse(event.target.result);
+                    
+                    // Migration: If old structure (zones at root), move to default layout
+                    if (importedState.zones && !importedState.layouts) {
+                        console.log("Migrating imported legacy project...");
+                        importedState = {
+                            ...importedState,
+                            activeLayoutId: 'default',
+                            layouts: [
+                                {
+                                    id: 'default',
+                                    name: 'Layout 1',
+                                    zones: importedState.zones || [],
+                                    backgroundImage: importedState.backgroundImage || null,
+                                    scale: 1,
+                                    pan: { x: 0, y: 0 }
+                                }
+                            ]
+                        };
+                        delete importedState.zones;
+                        delete importedState.backgroundImage;
+                    }
+
                     // Basic validation could go here
                     this.setState(importedState);
                     resolve(importedState);
@@ -232,5 +330,56 @@ class DataManager {
 
     setSchedule(scheduleData) {
         this.setState({ schedule: scheduleData });
+    }
+
+    // --- Layout Management ---
+
+    addLayout(name) {
+        const newLayout = {
+            id: 'layout_' + Date.now(), // Simple ID generation
+            name: name,
+            zones: [],
+            backgroundImage: null,
+            scale: 1,
+            pan: { x: 0, y: 0 }
+        };
+        
+        const newLayouts = [...this.state.layouts, newLayout];
+        this.setState({ 
+            layouts: newLayouts,
+            activeLayoutId: newLayout.id 
+        });
+    }
+
+    setActiveLayout(layoutId) {
+        if (this.state.layouts.find(l => l.id === layoutId)) {
+            this.setState({ activeLayoutId: layoutId });
+        }
+    }
+
+    deleteLayout(layoutId) {
+        if (this.state.layouts.length <= 1) {
+            alert("Du kan inte ta bort den sista layouten.");
+            return;
+        }
+
+        const newLayouts = this.state.layouts.filter(l => l.id !== layoutId);
+        let newActiveId = this.state.activeLayoutId;
+        
+        if (this.state.activeLayoutId === layoutId) {
+            newActiveId = newLayouts[0].id;
+        }
+
+        this.setState({ 
+            layouts: newLayouts,
+            activeLayoutId: newActiveId
+        });
+    }
+
+    renameLayout(layoutId, newName) {
+        const newLayouts = this.state.layouts.map(l => 
+            l.id === layoutId ? { ...l, name: newName } : l
+        );
+        this.setState({ layouts: newLayouts });
     }
 }

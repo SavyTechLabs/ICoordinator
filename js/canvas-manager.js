@@ -28,12 +28,72 @@ class CanvasManager {
         this.resizeHandle = null; // 'tl', 'tr', 'bl', 'br' or index for poly
 
         this.backgroundImage = null;
-        
+        this.lastLoadedBg = null; // Track loaded bg to avoid loops
+        this.lastLayoutId = null;
+
+        // Debounced save function for view state
+        this.saveViewStateDebounced = debounce(() => {
+            this.dataManager.updateActiveLayout({
+                scale: this.scale,
+                pan: { x: this.offsetX, y: this.offsetY }
+            });
+        }, 500);
+
         this.initEventListeners();
         this.resizeCanvas();
         
+        // Check for saved background on init
+        const activeLayout = this.dataManager.getActiveLayout();
+        if (activeLayout) {
+            this.lastLayoutId = activeLayout.id;
+            this.scale = activeLayout.scale || 1;
+            this.offsetX = activeLayout.pan ? activeLayout.pan.x : 0;
+            this.offsetY = activeLayout.pan ? activeLayout.pan.y : 0;
+            this.uiManager.updateZoomLevel(Math.round(this.scale * 100));
+            
+            const savedBg = activeLayout.backgroundImage;
+            if (savedBg) {
+                this.lastLoadedBg = savedBg;
+                const img = new Image();
+                img.onload = () => {
+                    this.setBackground(img, false);
+                };
+                img.src = savedBg;
+            }
+        }
+
         // Subscribe to data changes to redraw
-        this.dataManager.subscribe(() => {
+        this.dataManager.subscribe((state) => {
+            const currentLayout = this.dataManager.getActiveLayout();
+            if (!currentLayout) return;
+
+            // Check if layout changed
+            if (currentLayout.id !== this.lastLayoutId) {
+                this.lastLayoutId = currentLayout.id;
+                // Restore view settings
+                this.scale = currentLayout.scale || 1;
+                this.offsetX = currentLayout.pan ? currentLayout.pan.x : 0;
+                this.offsetY = currentLayout.pan ? currentLayout.pan.y : 0;
+                this.uiManager.updateZoomLevel(Math.round(this.scale * 100));
+            }
+
+            const currentBg = currentLayout.backgroundImage;
+
+            // Check if background image changed (e.g. import or layout switch)
+            if (currentBg && currentBg !== this.lastLoadedBg) {
+                this.lastLoadedBg = currentBg;
+                const img = new Image();
+                img.onload = () => {
+                    this.setBackground(img, false);
+                };
+                img.src = currentBg;
+            } else if (!currentBg && this.backgroundImage) {
+                // Layout has no background, clear it
+                this.backgroundImage = null;
+                this.lastLoadedBg = null;
+                document.getElementById('empty-state').style.display = 'flex';
+            }
+            
             this.draw();
         });
 
@@ -221,6 +281,11 @@ class CanvasManager {
         }
         // Note: Polygon drawing doesn't end on mouse up, it ends on closing loop
         
+        if (this.isPanning) {
+            // Save pan state (debounced)
+            this.saveViewStateDebounced();
+        }
+
         this.isDragging = false;
         this.isResizing = false;
         this.isPanning = false;
@@ -246,18 +311,19 @@ class CanvasManager {
         // screenPos = mousePos * scale + offset
         // We want screenPos to be the same before and after zoom
         // mousePos * oldScale + oldOffset = mousePos * newScale + newOffset
-        // newOffset = mousePos * (oldScale - newScale) + oldOffset
         
-        // However, getMousePos uses current offset and scale.
-        // Let's use raw client coordinates relative to canvas
         const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.clientX - rect.left;
-        const clientY = e.clientY - rect.top;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
         
-        this.offsetX = clientX - (clientX - this.offsetX) * (newScale / oldScale);
-        this.offsetY = clientY - (clientY - this.offsetY) * (newScale / oldScale);
-
+        this.offsetX = mouseX - (mouseX - this.offsetX) * (newScale / oldScale);
+        this.offsetY = mouseY - (mouseY - this.offsetY) * (newScale / oldScale);
+        
         this.uiManager.updateZoomLevel(Math.round(this.scale * 100));
+        
+        // Save view state (debounced)
+        this.saveViewStateDebounced();
+
         this.draw();
     }
 
@@ -291,7 +357,9 @@ class CanvasManager {
 
     getZoneAt(pos) {
         // Iterate in reverse to select top-most
-        const zones = this.dataManager.getState().zones;
+        const activeLayout = this.dataManager.getActiveLayout();
+        const zones = activeLayout ? activeLayout.zones : [];
+        
         for (let i = zones.length - 1; i >= 0; i--) {
             const z = zones[i];
             if (z.type === 'polygon') {
@@ -431,7 +499,7 @@ class CanvasManager {
 
     // --- Rendering ---
 
-    setBackground(imageOrCanvas) {
+    setBackground(imageOrCanvas, saveToState = true) {
         this.backgroundImage = imageOrCanvas;
         
         // Calculate scale to fit
@@ -450,6 +518,26 @@ class CanvasManager {
         
         // Hide empty state
         document.getElementById('empty-state').style.display = 'none';
+
+        if (saveToState) {
+            try {
+                let dataUrl;
+                if (imageOrCanvas instanceof HTMLCanvasElement) {
+                    dataUrl = imageOrCanvas.toDataURL();
+                } else {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = imageOrCanvas.width;
+                    canvas.height = imageOrCanvas.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(imageOrCanvas, 0, 0);
+                    dataUrl = canvas.toDataURL();
+                }
+                this.dataManager.setBackgroundImage(dataUrl);
+                this.lastLoadedBg = dataUrl; // Update tracker so we don't reload it
+            } catch (e) {
+                console.error("Failed to save background image to state", e);
+            }
+        }
     }
 
     draw() {
@@ -466,7 +554,9 @@ class CanvasManager {
         }
 
         // Draw Zones
-        const zones = this.dataManager.getState().zones;
+        const activeLayout = this.dataManager.getActiveLayout();
+        const zones = activeLayout ? activeLayout.zones : [];
+        
         zones.forEach(zone => {
             this.drawZone(zone);
         });
@@ -570,7 +660,10 @@ class CanvasManager {
         this.ctx.shadowBlur = 0;
 
         // Draw Connected Indicator (Checkmark)
-        if (zone.customData && zone.customData._activityCode) {
+        const hasLegacy = zone.customData && zone.customData._activityCode;
+        const hasMulti = zone.customData && zone.customData._connectedActivities && zone.customData._connectedActivities.length > 0;
+        
+        if (hasLegacy || hasMulti) {
             this.drawConnectionIndicator(zone);
         }
 

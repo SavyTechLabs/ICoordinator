@@ -75,7 +75,11 @@ class UIManager {
 
             // Language
             settingsLanguage: document.getElementById('settings-language'),
-            settingsZoneNaming: document.getElementById('settings-zone-naming')
+            settingsZoneNaming: document.getElementById('settings-zone-naming'),
+
+            // Layout Tabs
+            layoutTabs: document.getElementById('layout-tabs'),
+            btnAddLayout: document.getElementById('btn-add-layout')
         };
 
         this.tempExcelData = null; // Store raw data during mapping
@@ -86,6 +90,7 @@ class UIManager {
         this.dataManager.subscribe((state) => {
             this.renderLegend();
             this.renderSchedule(); // Re-render schedule to update linked status
+            this.renderLayoutTabs();
             
             // Check if language changed
             if (state.language !== this.currentLanguage) {
@@ -98,7 +103,7 @@ class UIManager {
         this.currentLanguage = this.dataManager.getState().language || 'sv';
         this.translateUI();
         this.renderLegend();
-        this.renderSchedule(); // Restore schedule on load
+        this.renderLayoutTabs();
     }
 
     setCanvasManager(cm) {
@@ -209,7 +214,13 @@ class UIManager {
         this.elements.layoutUpload.addEventListener('change', (e) => this.handleLayoutUpload(e));
         this.elements.scheduleUpload.addEventListener('change', (e) => this.handleScheduleUpload(e));
         this.elements.jsonUpload.addEventListener('change', (e) => this.handleJsonUpload(e));
-        this.elements.btnExportJson.addEventListener('click', () => this.dataManager.exportProject());
+        this.elements.btnExportJson.addEventListener('click', () => {
+            const defaultName = this.dataManager.getState().projectInfo.name || "icoordinator_project";
+            const filename = prompt(this.t('exportProject'), defaultName);
+            if (filename) {
+                this.dataManager.exportProject(filename);
+            }
+        });
         this.elements.btnAddField.addEventListener('click', () => this.addCustomField());
 
         // Settings
@@ -272,6 +283,16 @@ class UIManager {
                 document.getElementById(`tab-${tabId}`).classList.add('active');
             });
         });
+
+        // Layout Tabs
+        if (this.elements.btnAddLayout) {
+            this.elements.btnAddLayout.addEventListener('click', () => {
+                const name = prompt("Namn på ny layout:", `Layout ${this.dataManager.getState().layouts.length + 1}`);
+                if (name) {
+                    this.dataManager.addLayout(name);
+                }
+            });
+        }
     }
 
     // --- UI Updates ---
@@ -455,10 +476,16 @@ class UIManager {
         const file = e.target.files[0];
         if (!file) return;
 
+        // Check if XLSX is available
+        if (typeof XLSX === 'undefined') {
+            alert("Excel-biblioteket (SheetJS) kunde inte laddas. Kontrollera din internetanslutning.");
+            return;
+        }
+
         try {
             const data = await this.dataManager.parseExcelFile(file);
-            if (data.length === 0) {
-                alert(this.t('alertImportFail')); // Using generic fail message for empty file for now
+            if (!data || data.length === 0) {
+                alert(this.t('alertImportFail') + " (Filen verkar tom)");
                 return;
             }
             
@@ -466,7 +493,7 @@ class UIManager {
             this.showMappingModal(data[0]);
         } catch (err) {
             console.error(err);
-            alert(this.t('alertImportFail'));
+            alert(this.t('alertImportFail') + "\n" + err.message);
         }
     }
 
@@ -499,6 +526,15 @@ class UIManager {
     }
 
     confirmImport() {
+        console.log("Confirm import clicked");
+        
+        if (!this.tempExcelData) {
+            console.error("No Excel data to import");
+            alert("Ingen data att importera. Försök ladda upp filen igen.");
+            this.elements.mappingModal.classList.add('hidden');
+            return;
+        }
+
         const mapping = {
             code: this.elements.mapCode.value,
             title: this.elements.mapTitle.value,
@@ -506,28 +542,37 @@ class UIManager {
             end: this.elements.mapEnd.value
         };
 
+        console.log("Mapping:", mapping);
+
         if (!mapping.title) {
             alert(this.t('alertMappingTitle'));
             return;
         }
 
-        // Process data
-        const processedData = this.tempExcelData.map(row => ({
-            code: row[mapping.code] || '',
-            title: row[mapping.title] || this.t('namelessActivity'),
-            start: this.formatDate(row[mapping.start]),
-            end: this.formatDate(row[mapping.end]),
-            originalData: row
-        }));
+        try {
+            // Process data
+            const processedData = this.tempExcelData.map(row => ({
+                code: row[mapping.code] || '',
+                title: row[mapping.title] || this.t('namelessActivity'),
+                start: this.formatDate(row[mapping.start]),
+                end: this.formatDate(row[mapping.end]),
+                originalData: row
+            }));
 
-        this.dataManager.setSchedule(processedData);
-        this.renderSchedule();
-        
-        this.elements.mappingModal.classList.add('hidden');
-        this.elements.scheduleUpload.value = '';
-        this.tempExcelData = null;
-        
-        alert(this.t('alertImportSuccess').replace('{count}', processedData.length));
+            console.log("Processed data:", processedData);
+
+            this.dataManager.setSchedule(processedData);
+            this.renderSchedule();
+            
+            this.elements.mappingModal.classList.add('hidden');
+            this.elements.scheduleUpload.value = '';
+            this.tempExcelData = null;
+            
+            alert(this.t('alertImportSuccess').replace('{count}', processedData.length));
+        } catch (e) {
+            console.error("Import error:", e);
+            alert("Ett fel uppstod vid importen: " + e.message);
+        }
     }
 
     formatDate(excelDate) {
@@ -634,7 +679,6 @@ class UIManager {
         list.innerHTML = '';
         
         const schedule = this.dataManager.getState().schedule;
-        const zones = this.dataManager.getState().zones;
         const searchTerm = this.elements.activitySearch ? this.elements.activitySearch.value.toLowerCase() : '';
         
         if (schedule.length === 0) {
@@ -644,14 +688,20 @@ class UIManager {
 
         // Create a set of linked activity codes for fast lookup
         const linkedCodes = new Set();
-        zones.forEach(zone => {
-            if (zone.customData) {
-                if (zone.customData._activityCode) {
-                    linkedCodes.add(String(zone.customData._activityCode));
-                }
-                if (zone.customData._connectedActivities) {
-                    zone.customData._connectedActivities.forEach(a => linkedCodes.add(String(a.code)));
-                }
+        const layouts = this.dataManager.getState().layouts || [];
+        
+        layouts.forEach(layout => {
+            if (layout.zones) {
+                layout.zones.forEach(zone => {
+                    if (zone.customData) {
+                        if (zone.customData._activityCode) {
+                            linkedCodes.add(String(zone.customData._activityCode));
+                        }
+                        if (zone.customData._connectedActivities) {
+                            zone.customData._connectedActivities.forEach(a => linkedCodes.add(String(a.code)));
+                        }
+                    }
+                });
             }
         });
 
@@ -782,6 +832,71 @@ class UIManager {
             });
             this.renderSettings();
         }
+    }
+
+    addLayoutTab() {
+        const tabName = prompt(this.t('nameNewLayout'));
+        if (tabName) {
+            const tabId = 'layout_' + generateUUID();
+            
+            // Add to data manager
+            this.dataManager.addLayoutTab({ id: tabId, name: tabName });
+            
+            // Refresh tabs
+            this.renderLayoutTabs();
+        }
+    }
+
+    renderLayoutTabs() {
+        if (!this.elements.layoutTabs) return;
+        
+        const container = this.elements.layoutTabs;
+        container.innerHTML = '';
+        
+        const state = this.dataManager.getState();
+        const layouts = state.layouts || [];
+        const activeId = state.activeLayoutId;
+
+        layouts.forEach(layout => {
+            const tab = document.createElement('div');
+            tab.className = `layout-tab ${layout.id === activeId ? 'active' : ''}`;
+            
+            // Make the whole tab clickable for switching
+            tab.onclick = () => {
+                if (layout.id !== activeId) {
+                    this.dataManager.setActiveLayout(layout.id);
+                }
+            };
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = layout.name;
+            nameSpan.ondblclick = (e) => {
+                e.stopPropagation();
+                const newName = prompt("Byt namn på layout:", layout.name);
+                if (newName && newName !== layout.name) {
+                    this.dataManager.renameLayout(layout.id, newName);
+                }
+            };
+            
+            tab.appendChild(nameSpan);
+
+            // Close button (only if more than 1 layout)
+            if (layouts.length > 1) {
+                const closeBtn = document.createElement('span');
+                closeBtn.className = 'close-tab';
+                closeBtn.innerHTML = '&times;';
+                closeBtn.title = "Ta bort layout";
+                closeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm(`Ta bort layout "${layout.name}"?`)) {
+                        this.dataManager.deleteLayout(layout.id);
+                    }
+                };
+                tab.appendChild(closeBtn);
+            }
+
+            container.appendChild(tab);
+        });
     }
 
     disconnectActivity(index) {
