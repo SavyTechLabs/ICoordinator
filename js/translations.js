@@ -5,6 +5,7 @@ const TRANSLATIONS = {
         uploadLayout: "Ladda upp Layout",
         importSchedule: "Importera Tidplan",
         exportProject: "Exportera Projekt",
+        exportPdf: "Exportera PDF",
         importProject: "Importera Projekt",
         tools: "Verktyg",
         select: "Markera",
@@ -36,7 +37,7 @@ const TRANSLATIONS = {
         disconnect: "Koppla från",
         customFields: "Anpassade Fält",
         addField: "+ Lägg till fält",
-        deleteZone: "Ta bort Zon",
+        deleteZone: "Ta bort",
         selectZoneToEdit: "Markera en zon för att redigera egenskaper",
         
         // Settings Modal
@@ -124,7 +125,7 @@ const TRANSLATIONS = {
         disconnect: "Disconnect",
         customFields: "Custom Fields",
         addField: "+ Add Field",
-        deleteZone: "Delete Zone",
+        deleteZone: "Delete",
         selectZoneToEdit: "Select a zone to edit properties",
         
         // Settings Modal

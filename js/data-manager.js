@@ -30,6 +30,25 @@ class DataManager {
             language: 'sv', // 'sv' or 'en'
             zoneNameMode: 'activity', // 'activity' or 'manual'
             
+            // Filters
+            filters: {
+                text: '',
+                disciplines: [], // Empty = all
+                statuses: [], // Empty = all
+                dateStart: null,
+                dateEnd: null,
+                week: '',
+                showHidden: false
+            },
+
+            // Symbols
+            symbols: [
+                { id: 'north-arrow', name: 'Norrpil', type: 'svg', src: '<svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z" fill="currentColor"/></svg>' },
+                { id: 'camera', name: 'Kamera', type: 'svg', src: '<svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4H16.83L15 2H9ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17Z" fill="currentColor"/></svg>' },
+                { id: 'warning', name: 'Varning', type: 'svg', src: '<svg viewBox="0 0 24 24"><path d="M1 21H23L12 2L1 21ZM13 18H11V16H13V18ZM13 14H11V10H13V14Z" fill="#F59E0B"/></svg>' },
+                { id: 'arrow', name: 'Pil', type: 'svg', src: '<svg viewBox="0 0 24 24"><path d="M19 15L13 21L11.59 19.59L15.17 16H4V4H6V14H15.17L11.59 10.41L13 9L19 15Z" fill="currentColor"/></svg>' }
+            ],
+
             // Layouts Management
             activeLayoutId: 'default',
             layouts: [
@@ -214,6 +233,11 @@ class DataManager {
                 // Merge loaded state with default state to ensure new fields exist
                 this.state = { ...this.state, ...loadedState };
                 
+                // Fix: Remove legacy 'cloud' symbol if present (it is now a tool)
+                if (this.state.symbols) {
+                    this.state.symbols = this.state.symbols.filter(s => s.id !== 'cloud');
+                }
+                
                 // Ensure critical arrays exist
                 if (!this.state.disciplines) {
                     this.state.disciplines = [
@@ -381,5 +405,34 @@ class DataManager {
             l.id === layoutId ? { ...l, name: newName } : l
         );
         this.setState({ layouts: newLayouts });
+    }
+
+    // --- Filter Management ---
+
+    setFilters(newFilters) {
+        this.setState({
+            filters: { ...this.state.filters, ...newFilters }
+        });
+    }
+
+    resetFilters() {
+        this.setState({
+            filters: {
+                text: '',
+                disciplines: [],
+                statuses: [],
+                dateStart: null,
+                dateEnd: null,
+                week: '',
+                showHidden: false
+            }
+        });
+    }
+
+    // --- Symbol Management ---
+
+    addSymbol(symbol) {
+        const newSymbols = [...this.state.symbols, symbol];
+        this.setState({ symbols: newSymbols });
     }
 }

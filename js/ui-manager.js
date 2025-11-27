@@ -13,6 +13,7 @@ class UIManager {
             toolSelect: document.getElementById('tool-select'),
             toolDraw: document.getElementById('tool-draw'),
             toolPoly: document.getElementById('tool-poly'),
+            toolCloud: document.getElementById('tool-cloud'),
             
             // Zoom
             zoomIn: document.getElementById('zoom-in'),
@@ -28,7 +29,19 @@ class UIManager {
             metaDiscipline: document.getElementById('meta-discipline'),
             metaStatus: document.getElementById('meta-status'),
             metaColor: document.getElementById('meta-color'),
+            metaBorderColor: document.getElementById('meta-border-color'),
+            metaOpacity: document.getElementById('meta-opacity'),
+            opacityVal: document.getElementById('opacity-val'),
+            metaNoFill: document.getElementById('meta-no-fill'),
+            metaHidden: document.getElementById('meta-hidden'),
             metaComments: document.getElementById('meta-comments'),
+            
+            // New Metadata Fields
+            metaDate: document.getElementById('meta-date'),
+            metaDateDisplay: document.getElementById('meta-date-display'),
+            metaContact: document.getElementById('meta-contact'),
+            metaFreetext: document.getElementById('meta-freetext'),
+
             btnDeleteZone: document.getElementById('btn-delete-zone'),
             
             // Connected Activity
@@ -44,6 +57,7 @@ class UIManager {
             scheduleUpload: document.getElementById('schedule-upload'),
             jsonUpload: document.getElementById('json-upload'),
             btnExportJson: document.getElementById('btn-export-json'),
+            btnExportPdf: document.getElementById('btn-export-pdf'),
             
             // Layers / Schedule
             scheduleList: document.getElementById('schedule-list'),
@@ -79,10 +93,27 @@ class UIManager {
 
             // Layout Tabs
             layoutTabs: document.getElementById('layout-tabs'),
-            btnAddLayout: document.getElementById('btn-add-layout')
+            btnAddLayout: document.getElementById('btn-add-layout'),
+
+            // Filters
+            filterText: document.getElementById('filter-text'),
+            filterDisciplinesList: document.getElementById('filter-disciplines-list'),
+            filterStatusesList: document.getElementById('filter-statuses-list'),
+            filterDateStart: document.getElementById('filter-date-start'),
+            filterDateEnd: document.getElementById('filter-date-end'),
+            filterShowHidden: document.getElementById('filter-show-hidden'),
+            btnResetFilters: document.getElementById('btn-reset-filters'),
+            filterWeek: document.getElementById('filter-week'),
+            
+            // Symbols
+            symbolsGrid: document.getElementById('symbols-grid'),
+            symbolUpload: document.getElementById('symbol-upload')
         };
 
         this.tempExcelData = null; // Store raw data during mapping
+
+        // Subscribe to state changes
+        this.dataManager.subscribe(this.handleStateChange.bind(this));
 
         this.initEventListeners();
         
@@ -90,7 +121,7 @@ class UIManager {
         this.dataManager.subscribe((state) => {
             this.renderLegend();
             this.renderSchedule(); // Re-render schedule to update linked status
-            this.renderLayoutTabs();
+            this.renderLayoutTabs(); // Re-render tabs
             
             // Check if language changed
             if (state.language !== this.currentLanguage) {
@@ -104,6 +135,7 @@ class UIManager {
         this.translateUI();
         this.renderLegend();
         this.renderLayoutTabs();
+        this.renderFilters();
     }
 
     setCanvasManager(cm) {
@@ -161,6 +193,7 @@ class UIManager {
         this.elements.toolSelect.addEventListener('click', () => this.canvasManager.setTool('select'));
         this.elements.toolDraw.addEventListener('click', () => this.canvasManager.setTool('draw'));
         this.elements.toolPoly.addEventListener('click', () => this.canvasManager.setTool('poly'));
+        this.elements.toolCloud.addEventListener('click', () => this.canvasManager.setTool('cloud'));
 
         // View Mode
         this.elements.viewModeSelect.addEventListener('change', (e) => {
@@ -194,20 +227,26 @@ class UIManager {
         this.elements.zoomFit.addEventListener('click', () => this.canvasManager.zoomToFit());
 
         // Metadata Inputs (Auto-save)
-        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaComments'];
+        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaBorderColor', 'metaComments', 'metaDate', 'metaContact', 'metaFreetext', 'metaOpacity', 'metaNoFill', 'metaHidden'];
         inputs.forEach(id => {
-            this.elements[id].addEventListener('input', (e) => {
-                this.updateSelectedZone(id, e.target.value);
-            });
+            const el = this.elements[id];
+            if (el) {
+                const eventType = (el.type === 'checkbox' || el.type === 'range') ? 'change' : 'input';
+                el.addEventListener(eventType, (e) => {
+                    const val = el.type === 'checkbox' ? el.checked : el.value;
+                    this.updateSelectedZone(id, val);
+                });
+                // For range slider, update label immediately on input
+                if (el.type === 'range') {
+                    el.addEventListener('input', (e) => {
+                        this.elements.opacityVal.textContent = Math.round(e.target.value * 100) + '%';
+                    });
+                }
+            }
         });
 
         this.elements.btnDeleteZone.addEventListener('click', () => {
-            if (confirm(this.t('confirmDeleteZone'))) {
-                const zoneId = this.elements.metaId.value;
-                this.dataManager.deleteZone(zoneId);
-                this.selectZone(null);
-                this.canvasManager.draw();
-            }
+            this.canvasManager.deleteSelectedZones();
         });
 
         // File Uploads
@@ -221,6 +260,11 @@ class UIManager {
                 this.dataManager.exportProject(filename);
             }
         });
+        if (this.elements.btnExportPdf) {
+            this.elements.btnExportPdf.addEventListener('click', () => {
+                this.canvasManager.exportPdf();
+            });
+        }
         this.elements.btnAddField.addEventListener('click', () => this.addCustomField());
 
         // Settings
@@ -293,6 +337,86 @@ class UIManager {
                 }
             });
         }
+
+        // Filters
+        if (this.elements.filterText) {
+            this.elements.filterText.addEventListener('input', (e) => {
+                this.dataManager.setFilters({ text: e.target.value });
+            });
+        }
+        if (this.elements.filterDateStart) {
+            this.elements.filterDateStart.addEventListener('change', (e) => {
+                this.dataManager.setFilters({ dateStart: e.target.value });
+            });
+        }
+        if (this.elements.filterDateEnd) {
+            this.elements.filterDateEnd.addEventListener('change', (e) => {
+                this.dataManager.setFilters({ dateEnd: e.target.value });
+            });
+        }
+        if (this.elements.filterShowHidden) {
+            this.elements.filterShowHidden.addEventListener('change', (e) => {
+                this.dataManager.setFilters({ showHidden: e.target.checked });
+            });
+        }
+        if (this.elements.filterWeek) {
+            this.elements.filterWeek.addEventListener('input', (e) => {
+                this.dataManager.setFilters({ week: e.target.value });
+            });
+        }
+        if (this.elements.btnResetFilters) {
+            this.elements.btnResetFilters.addEventListener('click', () => {
+                this.dataManager.resetFilters();
+                // Reset UI inputs manually as they don't auto-bind two-way perfectly here
+                this.elements.filterText.value = '';
+                this.elements.filterDateStart.value = '';
+                this.elements.filterDateEnd.value = '';
+                this.elements.filterWeek.value = '';
+                if (this.elements.filterShowHidden) this.elements.filterShowHidden.checked = false;
+                this.renderFilters(); // Re-render checkboxes
+            });
+        }
+
+        // Symbol Upload
+        if (this.elements.symbolUpload) {
+            this.elements.symbolUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const result = event.target.result;
+                    const isSvg = file.type === 'image/svg+xml';
+                    
+                    // If SVG, we might want to store the content string if possible, or dataURL
+                    // For simplicity, let's use dataURL for everything for now, 
+                    // unless we want to parse SVG to change colors later.
+                    
+                    // Actually, for SVG symbols to be colorable, we need the raw SVG string.
+                    if (isSvg) {
+                        // Read as text to get SVG string
+                        const textReader = new FileReader();
+                        textReader.onload = (te) => {
+                            this.dataManager.addSymbol({
+                                id: generateUUID(),
+                                name: file.name.split('.')[0],
+                                type: 'svg',
+                                src: te.target.result
+                            });
+                        };
+                        textReader.readAsText(file);
+                    } else {
+                        this.dataManager.addSymbol({
+                            id: generateUUID(),
+                            name: file.name.split('.')[0],
+                            type: 'image',
+                            src: result
+                        });
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
     }
 
     // --- UI Updates ---
@@ -301,42 +425,55 @@ class UIManager {
         this.elements.toolSelect.classList.toggle('active', tool === 'select');
         this.elements.toolDraw.classList.toggle('active', tool === 'draw');
         this.elements.toolPoly.classList.toggle('active', tool === 'poly');
+        this.elements.toolCloud.classList.toggle('active', tool === 'cloud');
     }
 
     updateZoomLevel(percentage) {
         this.elements.zoomLevel.textContent = `${percentage}%`;
     }
 
-    selectZone(zoneId) {
-        if (!zoneId) {
+    selectZone(selection) {
+        let zoneIds = [];
+        if (selection instanceof Set) {
+            zoneIds = Array.from(selection);
+        } else if (Array.isArray(selection)) {
+            zoneIds = selection;
+        } else if (selection) {
+            zoneIds = [selection];
+        }
+
+        if (zoneIds.length === 0) {
             this.elements.metadataContent.classList.add('hidden');
             this.elements.metadataEmpty.classList.remove('hidden');
             return;
         }
 
-        const zone = this.dataManager.getZone(zoneId);
-        if (zone) {
-            this.elements.metadataContent.classList.remove('hidden');
-            this.elements.metadataEmpty.classList.add('hidden');
+        this.elements.metadataContent.classList.remove('hidden');
+        this.elements.metadataEmpty.classList.add('hidden');
 
-            // Populate Dropdowns dynamically
-            const disciplines = this.dataManager.getState().disciplines;
-            this.elements.metaDiscipline.innerHTML = `<option value="">${this.t('selectDiscipline')}</option>`;
-            disciplines.forEach(d => {
-                const option = document.createElement('option');
-                option.value = d.id;
-                option.textContent = this.t(d.name);
-                this.elements.metaDiscipline.appendChild(option);
-            });
+        // Populate Dropdowns dynamically
+        const disciplines = this.dataManager.getState().disciplines;
+        this.elements.metaDiscipline.innerHTML = `<option value="">${this.t('selectDiscipline')}</option>`;
+        disciplines.forEach(d => {
+            const option = document.createElement('option');
+            option.value = d.id;
+            option.textContent = this.t(d.name);
+            this.elements.metaDiscipline.appendChild(option);
+        });
 
-            const statuses = this.dataManager.getState().statuses;
-            this.elements.metaStatus.innerHTML = '';
-            statuses.forEach(s => {
-                const option = document.createElement('option');
-                option.value = s.id;
-                option.textContent = this.t(s.name);
-                this.elements.metaStatus.appendChild(option);
-            });
+        const statuses = this.dataManager.getState().statuses;
+        this.elements.metaStatus.innerHTML = '';
+        statuses.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = this.t(s.name);
+            this.elements.metaStatus.appendChild(option);
+        });
+
+        if (zoneIds.length === 1) {
+            const zoneId = zoneIds[0];
+            const zone = this.dataManager.getZone(zoneId);
+            if (!zone) return;
 
             // Populate fields
             this.elements.metaId.value = zone.id;
@@ -344,8 +481,35 @@ class UIManager {
             this.elements.metaDiscipline.value = zone.discipline || '';
             this.elements.metaStatus.value = zone.status || 'planned';
             this.elements.metaColor.value = zone.color || '#2563EB';
+            this.elements.metaBorderColor.value = zone.borderColor || zone.color || '#2563EB';
             this.elements.metaComments.value = zone.comments || '';
             
+            // New Fields
+            this.elements.metaDate.value = zone.date || '';
+            this.elements.metaDateDisplay.value = getWeekDayString(zone.date);
+            this.elements.metaContact.value = zone.contact || '';
+            this.elements.metaFreetext.value = zone.freetext || '';
+            
+            // Visuals
+            this.elements.metaOpacity.value = zone.opacity !== undefined ? zone.opacity : 0.5;
+            this.elements.opacityVal.textContent = Math.round((zone.opacity !== undefined ? zone.opacity : 0.5) * 100) + '%';
+            this.elements.metaNoFill.checked = !!zone.noFill;
+            this.elements.metaHidden.checked = !!zone.hidden;
+
+            // Handle Symbol/Cloud vs Zone UI
+            const isSymbol = zone.type === 'symbol' || zone.type === 'cloud';
+            
+            // Fields to hide for symbols
+            const zoneOnlyFields = [
+                this.elements.metaDate.parentElement,
+                this.elements.metaContact.parentElement,
+                this.elements.connectedActivitySection
+            ];
+
+            zoneOnlyFields.forEach(el => {
+                if (el) el.style.display = isSymbol ? 'none' : 'block';
+            });
+
             // Connected Activity Display
             let connectedActivities = zone.customData._connectedActivities || [];
             
@@ -398,34 +562,98 @@ class UIManager {
             }
 
             this.renderCustomFields();
+        } else {
+            // Multi Selection
+            this.elements.metaId.value = 'multi';
+            this.elements.metaName.value = `${zoneIds.length} ${this.t('itemsSelected')}`;
+            
+            // Helper to check if all values are same
+            const getCommonValue = (key, defaultVal = '') => {
+                const first = this.dataManager.getZone(zoneIds[0])[key];
+                return zoneIds.every(id => this.dataManager.getZone(id)[key] === first) ? first : defaultVal;
+            };
+
+            const commonDiscipline = getCommonValue('discipline', null);
+            this.elements.metaDiscipline.value = commonDiscipline || '';
+
+            const commonStatus = getCommonValue('status', null);
+            this.elements.metaStatus.value = commonStatus || '';
+
+            this.elements.metaColor.value = getCommonValue('color', '#000000');
+            this.elements.metaBorderColor.value = getCommonValue('borderColor', '#000000');
+            this.elements.metaComments.value = ''; 
+
+            // Hide specific fields
+            this.elements.metaDate.parentElement.style.display = 'none';
+            this.elements.metaContact.parentElement.style.display = 'none';
+            this.elements.connectedActivitySection.classList.add('hidden');
+            
+            // Visuals
+            const commonOpacity = getCommonValue('opacity', 0.5);
+            this.elements.metaOpacity.value = commonOpacity;
+            this.elements.opacityVal.textContent = Math.round(commonOpacity * 100) + '%';
+            
+            this.elements.metaNoFill.checked = getCommonValue('noFill', false);
+            this.elements.metaHidden.checked = getCommonValue('hidden', false);
+            
+            // Clear custom fields for now
+            this.elements.customFieldsContainer.innerHTML = '';
         }
     }
 
     updateSelectedZone(fieldId, value) {
-        const zoneId = this.elements.metaId.value;
-        if (!zoneId) return;
+        const selection = this.canvasManager.selectedZoneIds;
+        if (!selection || selection.size === 0) return;
 
-        const zone = this.dataManager.getZone(zoneId);
-        if (!zone) return;
+        const zoneIds = Array.from(selection);
 
-        const updates = {};
-        switch (fieldId) {
-            case 'metaName': updates.name = value; break;
-            case 'metaDiscipline': 
-                updates.discipline = value; 
-                // Auto-set color from discipline if available
-                const discipline = this.dataManager.getState().disciplines.find(d => d.id === value);
-                if (discipline) {
-                    updates.color = discipline.color;
-                    this.elements.metaColor.value = discipline.color;
-                }
-                break;
-            case 'metaStatus': updates.status = value; break;
-            case 'metaColor': updates.color = value; break;
-            case 'metaComments': updates.comments = value; break;
-        }
+        zoneIds.forEach(zoneId => {
+            const zone = this.dataManager.getZone(zoneId);
+            if (!zone) return;
 
-        this.dataManager.updateZone({ ...zone, ...updates });
+            const updates = {};
+            switch (fieldId) {
+                case 'metaName': 
+                    if (zoneIds.length === 1) updates.name = value; 
+                    break;
+                case 'metaDiscipline': 
+                    updates.discipline = value; 
+                    // Auto-set color from discipline if available
+                    const discipline = this.dataManager.getState().disciplines.find(d => d.id === value);
+                    if (discipline) {
+                        updates.color = discipline.color;
+                        if (zoneIds.length === 1) this.elements.metaColor.value = discipline.color;
+                    }
+                    break;
+                case 'metaStatus': updates.status = value; break;
+                case 'metaColor': updates.color = value; break;
+                case 'metaBorderColor': updates.borderColor = value; break;
+                case 'metaComments': 
+                    if (zoneIds.length === 1) updates.comments = value; 
+                    break;
+                
+                // New Fields
+                case 'metaDate': 
+                    if (zoneIds.length === 1) {
+                        updates.date = value; 
+                        this.elements.metaDateDisplay.value = getWeekDayString(value);
+                    }
+                    break;
+                case 'metaContact': 
+                    if (zoneIds.length === 1) updates.contact = value; 
+                    break;
+                case 'metaFreetext': 
+                    if (zoneIds.length === 1) updates.freetext = value; 
+                    break;
+                case 'metaOpacity': updates.opacity = parseFloat(value); break;
+                case 'metaNoFill': updates.noFill = value; break;
+                case 'metaHidden': updates.hidden = value; break;
+            }
+
+            if (Object.keys(updates).length > 0) {
+                this.dataManager.updateZone({ ...zone, ...updates });
+            }
+        });
     }
 
     // --- File Handling ---
@@ -965,5 +1193,155 @@ class UIManager {
             div.appendChild(label);
             this.elements.legendItems.appendChild(div);
         });
+    }
+
+    renderFilters() {
+        if (!this.elements.filterDisciplinesList) return;
+
+        const state = this.dataManager.getState();
+        const filters = state.filters;
+
+        // Render Disciplines
+        this.elements.filterDisciplinesList.innerHTML = '';
+        state.disciplines.forEach(d => {
+            const div = document.createElement('div');
+            div.className = 'checkbox-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = d.id;
+            checkbox.checked = filters.disciplines.includes(d.id);
+            
+            checkbox.addEventListener('change', (e) => {
+                const currentFilters = this.dataManager.getState().filters;
+                let newDisciplines = [...currentFilters.disciplines];
+                if (e.target.checked) {
+                    newDisciplines.push(d.id);
+                } else {
+                    newDisciplines = newDisciplines.filter(id => id !== d.id);
+                }
+                this.dataManager.setFilters({ disciplines: newDisciplines });
+            });
+
+            const label = document.createElement('span');
+            label.textContent = this.t(d.name);
+            
+            // Color indicator
+            const dot = document.createElement('span');
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.borderRadius = '50%';
+            dot.style.backgroundColor = d.color;
+
+            div.appendChild(checkbox);
+            div.appendChild(dot);
+            div.appendChild(label);
+            this.elements.filterDisciplinesList.appendChild(div);
+        });
+
+        // Render Statuses
+        this.elements.filterStatusesList.innerHTML = '';
+        state.statuses.forEach(s => {
+            const div = document.createElement('div');
+            div.className = 'checkbox-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = s.id;
+            checkbox.checked = filters.statuses.includes(s.id);
+            
+            checkbox.addEventListener('change', (e) => {
+                const currentFilters = this.dataManager.getState().filters;
+                let newStatuses = [...currentFilters.statuses];
+                if (e.target.checked) {
+                    newStatuses.push(s.id);
+                } else {
+                    newStatuses = newStatuses.filter(id => id !== s.id);
+                }
+                this.dataManager.setFilters({ statuses: newStatuses });
+            });
+
+            const label = document.createElement('span');
+            label.textContent = this.t(s.name);
+            
+            const dot = document.createElement('span');
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.borderRadius = '50%';
+            dot.style.backgroundColor = s.color;
+
+            div.appendChild(checkbox);
+            div.appendChild(dot);
+            div.appendChild(label);
+            this.elements.filterStatusesList.appendChild(div);
+        });
+    }
+
+    handleStateChange(state) {
+        // Re-render filters if disciplines or statuses changed
+        this.renderFilters();
+        this.renderLegend();
+        this.renderSymbols();
+    }
+
+    renderSymbols() {
+        if (!this.elements.symbolsGrid) return;
+
+        const symbols = this.dataManager.getState().symbols || [];
+        this.elements.symbolsGrid.innerHTML = '';
+
+        symbols.forEach(symbol => {
+            const div = document.createElement('div');
+            div.className = 'symbol-item';
+            div.draggable = true;
+            
+            // Drag Start
+            div.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify({
+                    type: 'symbol',
+                    symbolId: symbol.id,
+                    width: 50, // Default size
+                    height: 50
+                }));
+                e.dataTransfer.effectAllowed = 'copy';
+            });
+
+            // Icon
+            if (symbol.type === 'svg') {
+                div.innerHTML = symbol.src;
+            } else if (symbol.type === 'image') {
+                const img = document.createElement('img');
+                img.src = symbol.src;
+                div.appendChild(img);
+            }
+
+            // Label
+            const span = document.createElement('span');
+            span.textContent = symbol.name;
+            div.appendChild(span);
+
+            this.elements.symbolsGrid.appendChild(div);
+        });
+    }
+
+    // --- Initialization ---
+    init() {
+        // Initial setup or state recovery
+        const state = this.dataManager.getState();
+        
+        // Set initial tool
+        this.canvasManager.setTool('select');
+        
+        // Restore saved state
+        if (state.activeLayoutId) {
+            this.dataManager.setActiveLayout(state.activeLayoutId);
+        }
+
+        // Initial render
+        this.renderLegend();
+        this.renderSchedule();
+        this.renderLayoutTabs();
+        this.renderFilters();
+        this.renderSymbols();
     }
 }

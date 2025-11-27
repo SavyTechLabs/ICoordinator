@@ -753,6 +753,79 @@ body {
     /* Ensure canvas wrapper takes remaining height */
 }
 
+/* Filters */
+.checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.filter-section {
+    margin-bottom: var(--spacing-md);
+}
+
+.filter-section label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-xs);
+}
+
+/* Symbols Grid */
+.symbols-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.symbol-item {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    transition: all 0.2s;
+}
+
+.symbol-item:hover {
+    border-color: var(--primary-color);
+    background: #eff6ff;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.symbol-item img, .symbol-item svg {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 5px;
+}
+
+.symbol-item span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1024px) {
     .app-container {

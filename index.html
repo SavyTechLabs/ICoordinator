@@ -11,6 +11,8 @@
     <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- SheetJS (XLSX) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <!-- Translations -->
@@ -33,6 +35,9 @@
                 </button>
                 <button class="tab-btn" data-tab="activities" title="Aktiviteter" data-i18n-title="activities">
                     <span class="material-icons">list</span>
+                </button>
+                <button class="tab-btn" data-tab="filters" title="Filter" data-i18n-title="filters">
+                    <span class="material-icons">filter_alt</span>
                 </button>
                 <button class="tab-btn" data-tab="settings" title="Inställningar" data-i18n-title="settings">
                     <span class="material-icons">settings</span>
@@ -63,6 +68,9 @@
                         <button id="btn-export-json" class="btn btn-outline full-width">
                             <span class="material-icons">save</span> <span data-i18n="exportProject">Exportera Projekt</span>
                         </button>
+                        <button id="btn-export-pdf" class="btn btn-outline full-width">
+                            <span class="material-icons">picture_as_pdf</span> <span data-i18n="exportPdf">Exportera PDF</span>
+                        </button>
                         <button id="btn-import-json" class="btn btn-outline full-width" onclick="document.getElementById('json-upload').click()">
                             <span class="material-icons">file_open</span> <span data-i18n="importProject">Importera Projekt</span>
                         </button>
@@ -86,6 +94,28 @@
                             <span class="material-icons">polyline</span>
                             <span data-i18n="polygon">Polygon</span>
                         </button>
+                        <button id="tool-cloud" class="tool-btn" title="Rita Moln" data-i18n-title="cloud">
+                            <span class="material-icons">cloud</span>
+                            <span data-i18n="cloud">Moln</span>
+                        </button>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <h3>Symboler</h3>
+                    <p class="text-muted small">Dra och släpp symboler till ritningen.</p>
+                    
+                    <div id="symbols-grid" class="symbols-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <div class="divider"></div>
+                    
+                    <div class="file-input-group">
+                        <label for="symbol-upload" class="btn btn-outline full-width">
+                            <span class="material-icons">add_photo_alternate</span> Ladda upp egen
+                        </label>
+                        <input type="file" id="symbol-upload" accept="image/*,.svg" hidden>
                     </div>
                 </div>
                 
@@ -98,6 +128,69 @@
                     <div id="schedule-list" class="schedule-list">
                         <p class="text-muted small" style="padding: 0.5rem; color: var(--text-muted);" data-i18n="importExcelHint">Importera en Excel-fil för att se aktiviteter här.</p>
                     </div>
+                </div>
+
+                <!-- Filters Tab -->
+                <div id="tab-filters" class="tab-pane">
+                    <h2>Filter</h2>
+                    
+                    <div class="filter-section">
+                        <label>Sök (Namn/ID/Text)</label>
+                        <input type="text" id="filter-text" class="full-width" placeholder="Sök...">
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filter-section">
+                        <label>Disciplin</label>
+                        <div id="filter-disciplines-list" class="checkbox-list">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filter-section">
+                        <label>Status</label>
+                        <div id="filter-statuses-list" class="checkbox-list">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filter-section">
+                        <label>Datumintervall</label>
+                        <div style="display: flex; gap: 5px; flex-direction: column;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <span style="font-size: 0.8rem;">Från:</span>
+                                <input type="date" id="filter-date-start" style="width: 120px;">
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <span style="font-size: 0.8rem;">Till:</span>
+                                <input type="date" id="filter-date-end" style="width: 120px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filter-section">
+                        <label>Vecka (ex. 42 eller 42-45)</label>
+                        <input type="text" id="filter-week" class="full-width" placeholder="v.nr">
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filter-section">
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; cursor: pointer;">
+                            <input type="checkbox" id="filter-show-hidden"> Visa dolda objekt
+                        </label>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <button id="btn-reset-filters" class="btn btn-secondary full-width">Återställ Filter</button>
                 </div>
 
                 <!-- Settings Tab -->
@@ -174,6 +267,24 @@
                 </div>
 
                 <div class="form-group">
+                    <label>Datum</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="date" id="meta-date" class="full-width">
+                        <input type="text" id="meta-date-display" readonly style="width: 80px; text-align: center; background: #f1f5f9;" title="Vecka-Dag">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Kontaktperson</label>
+                    <input type="text" id="meta-contact">
+                </div>
+
+                <div class="form-group">
+                    <label>Fritext</label>
+                    <input type="text" id="meta-freetext">
+                </div>
+
+                <div class="form-group">
                     <label data-i18n="status">Status</label>
                     <select id="meta-status">
                         <!-- Options populated dynamically -->
@@ -181,12 +292,35 @@
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="color">Färg</label>
-                    <input type="color" id="meta-color" class="color-input">
+                    <label data-i18n="color">Utseende</label>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                        <label style="font-size: 0.8rem; width: 70px;">Fyllnad:</label>
+                        <input type="color" id="meta-color" class="color-input">
+                        <input type="range" id="meta-opacity" min="0" max="1" step="0.1" style="flex: 1;">
+                        <span id="opacity-val" style="font-size: 0.8rem; width: 30px;">50%</span>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="font-size: 0.8rem; width: 70px;">Kantlinje:</label>
+                        <input type="color" id="meta-border-color" class="color-input">
+                        <div style="flex: 1;"></div> <!-- Spacer to align with above -->
+                    </div>
+
+                    <div style="margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="meta-no-fill"> Endast ram (ingen fyllning)
+                        </label>
+                    </div>
+                    <div style="margin-top: 4px;">
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="meta-hidden"> Dölj objekt
+                        </label>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="comments">Kommentarer</label>
+                    <label data-i18n="comments">Anteckningar (Dolda)</label>
                     <textarea id="meta-comments" rows="4"></textarea>
                 </div>
 
@@ -205,7 +339,7 @@
                 <button id="btn-add-field" class="btn btn-small btn-text" data-i18n="addField">+ Lägg till fält</button>
 
                 <div class="divider"></div>
-                <button id="btn-delete-zone" class="btn btn-danger full-width" data-i18n="deleteZone">Ta bort Zon</button>
+                <button id="btn-delete-zone" class="btn btn-danger full-width" data-i18n="deleteZone">Ta bort</button>
             </div>
 
             <div id="metadata-empty" class="metadata-empty">
