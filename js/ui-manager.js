@@ -686,7 +686,8 @@ class UIManager {
         const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
         const page = await pdf.getPage(1); // Render first page
         
-        const viewport = page.getViewport({ scale: 2.0 }); // High res
+        // Reduce scale to avoid huge Data URLs that crash localStorage
+        const viewport = page.getViewport({ scale: 1.5 }); 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         canvas.height = viewport.height;

@@ -49,31 +49,75 @@ function getContrastColor(hexcolor) {
     var r = parseInt(hexcolor.substr(0,2),16);
     var g = parseInt(hexcolor.substr(2,2),16);
     var b = parseInt(hexcolor.substr(4,2),16);
-
-    // Get YIQ ratio
-    var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-
-    // Check contrast
+    var yiq = ((r*299)+(g*587)+(b*114))/1000;
     return (yiq >= 128) ? 'black' : 'white';
 }
 
-// Get ISO week number and day
-function getWeekDayString(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-
-    // Copy date so don't modify original
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    // Set to nearest Thursday: current date + 4 - current day number
-    // Make Sunday's day number 7
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-    // Get first day of year
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    // Calculate full weeks to nearest Thursday
-    const weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-    
-    const day = date.getDay() || 7; // 1 (Mon) - 7 (Sun)
-    
-    return `W${weekNo}-${day}`;
+function getWeekDayString(dateString) {
+    if (!dateString) return '';
+    const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return days[date.getDay()];
 }
+
+/**
+ * Simple IndexedDB Wrapper
+ * Allows storing large objects (blobs, files, large strings) that exceed localStorage limits.
+ */
+const DB_NAME = 'ICoordinatorDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'projects';
+
+const db = {
+    open: () => {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+            request.onerror = (event) => reject("IndexedDB error: " + event.target.error);
+
+            request.onsuccess = (event) => resolve(event.target.result);
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME);
+                }
+            };
+        });
+    },
+
+    save: async (key, data) => {
+        try {
+            const database = await db.open();
+            return new Promise((resolve, reject) => {
+                const transaction = database.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.put(data, key);
+
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        } catch (e) {
+            console.error("DB Save Error:", e);
+            throw e;
+        }
+    },
+
+    load: async (key) => {
+        try {
+            const database = await db.open();
+            return new Promise((resolve, reject) => {
+                const transaction = database.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(key);
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        } catch (e) {
+            console.error("DB Load Error:", e);
+            throw e;
+        }
+    }
+};

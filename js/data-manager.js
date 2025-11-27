@@ -64,7 +64,22 @@ class DataManager {
         };
         
         this.listeners = [];
-        this.loadFromStorage();
+        this.storageAlertShown = false;
+        
+        // Debounced save to prevent flooding IndexedDB
+        this.debouncedSave = debounce(() => {
+            // Clone state to avoid mutation during async save
+            const stateToSave = JSON.parse(JSON.stringify(this.state));
+            db.save('icoordinator_data', stateToSave).catch(e => {
+                console.error("Failed to save to IndexedDB", e);
+            });
+        }, 500);
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadFromStorage();
     }
 
     // --- State Management ---
@@ -195,18 +210,32 @@ class DataManager {
     // --- Persistence ---
 
     saveToStorage() {
-        try {
-            localStorage.setItem('icoordinator_data', JSON.stringify(this.state));
-        } catch (e) {
-            console.error("Failed to save to localStorage", e);
-        }
+        this.debouncedSave();
     }
 
-    loadFromStorage() {
+    async loadFromStorage() {
         try {
-            const data = localStorage.getItem('icoordinator_data');
-            if (data) {
-                let loadedState = JSON.parse(data);
+            let loadedState = null;
+            
+            // 1. Try IndexedDB
+            try {
+                loadedState = await db.load('icoordinator_data');
+            } catch (e) {
+                console.warn("Could not load from IndexedDB, falling back to LocalStorage", e);
+            }
+
+            // 2. Fallback/Migration from LocalStorage
+            if (!loadedState) {
+                const localData = localStorage.getItem('icoordinator_data');
+                if (localData) {
+                    console.log("Migrating data from LocalStorage to IndexedDB...");
+                    loadedState = JSON.parse(localData);
+                    // Save to DB immediately to complete migration
+                    this.debouncedSave(); 
+                }
+            }
+
+            if (loadedState) {
                 
                 // Migration: If old structure (zones at root), move to default layout
                 if (loadedState.zones && !loadedState.layouts) {
@@ -268,9 +297,11 @@ class DataManager {
                     }];
                     this.state.activeLayoutId = 'default';
                 }
+
+                this.notifyListeners();
             }
         } catch (e) {
-            console.error("Failed to load from localStorage", e);
+            console.error("Failed to load data", e);
         }
     }
 

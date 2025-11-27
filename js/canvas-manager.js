@@ -64,6 +64,10 @@ class CanvasManager {
                 img.onload = () => {
                     this.setBackground(img, false);
                 };
+                img.onerror = (e) => {
+                    console.error("Failed to load initial background", e);
+                    this.lastLoadedBg = null;
+                };
                 img.src = savedBg;
             }
         }
@@ -87,10 +91,17 @@ class CanvasManager {
 
             // Check if background image changed (e.g. import or layout switch)
             if (currentBg && currentBg !== this.lastLoadedBg) {
+                console.log(`Loading background for layout ${currentLayout.id}...`);
                 this.lastLoadedBg = currentBg;
                 const img = new Image();
                 img.onload = () => {
+                    console.log(`Background loaded for layout ${currentLayout.id}`);
                     this.setBackground(img, false);
+                };
+                img.onerror = (e) => {
+                    console.error(`Failed to load background for layout ${currentLayout.id}`, e);
+                    // Reset lastLoadedBg so we can try again if needed, or at least we know it failed
+                    this.lastLoadedBg = null; 
                 };
                 img.src = currentBg;
             } else if (!currentBg && this.backgroundImage) {
