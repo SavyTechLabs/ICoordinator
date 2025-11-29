@@ -15,6 +15,19 @@ class UIManager {
             toolPoly: document.getElementById('tool-poly'),
             toolCloud: document.getElementById('tool-cloud'),
             
+            // Drawing Tools
+            toolArrow: document.getElementById('tool-arrow'),
+            toolLine: document.getElementById('tool-line'),
+            toolEllipse: document.getElementById('tool-ellipse'),
+            toolText: document.getElementById('tool-text'),
+            toolDrawPoly: document.getElementById('tool-draw-poly'),
+            toolDrawRect: document.getElementById('tool-draw-rect'),
+
+            // Measurement Tools
+            toolMeasureLength: document.getElementById('tool-measure-length'),
+            toolMeasureArea: document.getElementById('tool-measure-area'),
+            toolCalibrate: document.getElementById('tool-calibrate'),
+
             // Zoom
             zoomIn: document.getElementById('zoom-in'),
             zoomOut: document.getElementById('zoom-out'),
@@ -30,6 +43,7 @@ class UIManager {
             metaStatus: document.getElementById('meta-status'),
             metaColor: document.getElementById('meta-color'),
             metaBorderColor: document.getElementById('meta-border-color'),
+            metaLineType: document.getElementById('meta-line-type'),
             metaOpacity: document.getElementById('meta-opacity'),
             opacityVal: document.getElementById('opacity-val'),
             metaNoFill: document.getElementById('meta-no-fill'),
@@ -41,6 +55,9 @@ class UIManager {
             metaDateDisplay: document.getElementById('meta-date-display'),
             metaContact: document.getElementById('meta-contact'),
             metaFreetext: document.getElementById('meta-freetext'),
+            
+            metaFontSizeGroup: document.getElementById('meta-font-size-group'),
+            metaFontSize: document.getElementById('meta-font-size'),
 
             btnDeleteZone: document.getElementById('btn-delete-zone'),
             
@@ -195,6 +212,19 @@ class UIManager {
         this.elements.toolPoly.addEventListener('click', () => this.canvasManager.setTool('poly'));
         this.elements.toolCloud.addEventListener('click', () => this.canvasManager.setTool('cloud'));
 
+        // Drawing Tools
+        this.elements.toolArrow.addEventListener('click', () => this.canvasManager.setTool('arrow'));
+        this.elements.toolLine.addEventListener('click', () => this.canvasManager.setTool('line'));
+        this.elements.toolEllipse.addEventListener('click', () => this.canvasManager.setTool('ellipse'));
+        this.elements.toolText.addEventListener('click', () => this.canvasManager.setTool('text'));
+        this.elements.toolDrawPoly.addEventListener('click', () => this.canvasManager.setTool('draw-poly'));
+        this.elements.toolDrawRect.addEventListener('click', () => this.canvasManager.setTool('draw-rect'));
+
+        // Measurement Tools
+        this.elements.toolMeasureLength.addEventListener('click', () => this.canvasManager.setTool('measure-length'));
+        this.elements.toolMeasureArea.addEventListener('click', () => this.canvasManager.setTool('measure-area'));
+        this.elements.toolCalibrate.addEventListener('click', () => this.canvasManager.setTool('calibrate'));
+
         // View Mode
         this.elements.viewModeSelect.addEventListener('change', (e) => {
             this.dataManager.setViewMode(e.target.value);
@@ -227,7 +257,7 @@ class UIManager {
         this.elements.zoomFit.addEventListener('click', () => this.canvasManager.zoomToFit());
 
         // Metadata Inputs (Auto-save)
-        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaBorderColor', 'metaComments', 'metaDate', 'metaContact', 'metaFreetext', 'metaOpacity', 'metaNoFill', 'metaHidden'];
+        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaBorderColor', 'metaLineType', 'metaComments', 'metaDate', 'metaContact', 'metaFreetext', 'metaOpacity', 'metaNoFill', 'metaHidden', 'metaFontSize'];
         inputs.forEach(id => {
             const el = this.elements[id];
             if (el) {
@@ -426,6 +456,17 @@ class UIManager {
         this.elements.toolDraw.classList.toggle('active', tool === 'draw');
         this.elements.toolPoly.classList.toggle('active', tool === 'poly');
         this.elements.toolCloud.classList.toggle('active', tool === 'cloud');
+        
+        this.elements.toolArrow.classList.toggle('active', tool === 'arrow');
+        this.elements.toolLine.classList.toggle('active', tool === 'line');
+        this.elements.toolEllipse.classList.toggle('active', tool === 'ellipse');
+        this.elements.toolText.classList.toggle('active', tool === 'text');
+        this.elements.toolDrawPoly.classList.toggle('active', tool === 'draw-poly');
+        this.elements.toolDrawRect.classList.toggle('active', tool === 'draw-rect');
+
+        this.elements.toolMeasureLength.classList.toggle('active', tool === 'measure-length');
+        this.elements.toolMeasureArea.classList.toggle('active', tool === 'measure-area');
+        this.elements.toolCalibrate.classList.toggle('active', tool === 'calibrate');
     }
 
     updateZoomLevel(percentage) {
@@ -482,6 +523,7 @@ class UIManager {
             this.elements.metaStatus.value = zone.status || 'planned';
             this.elements.metaColor.value = zone.color || '#2563EB';
             this.elements.metaBorderColor.value = zone.borderColor || zone.color || '#2563EB';
+            this.elements.metaLineType.value = zone.lineType || 'solid';
             this.elements.metaComments.value = zone.comments || '';
             
             // New Fields
@@ -498,16 +540,28 @@ class UIManager {
 
             // Handle Symbol/Cloud vs Zone UI
             const isSymbol = zone.type === 'symbol' || zone.type === 'cloud';
+            const isText = zone.type === 'text';
+            const isMeasurement = zone.type === 'measure-length' || zone.type === 'measure-area' || zone.type === 'arrow' || zone.type === 'line' || zone.type === 'draw-poly' || zone.type === 'draw-rect';
             
-            // Fields to hide for symbols
+            // Font Size
+            if (isText) {
+                this.elements.metaFontSizeGroup.classList.remove('hidden');
+                this.elements.metaFontSize.value = (zone.customData && zone.customData.fontSize) || 16;
+            } else {
+                this.elements.metaFontSizeGroup.classList.add('hidden');
+            }
+
+            // Fields to hide for symbols/text/measurements
             const zoneOnlyFields = [
                 this.elements.metaDate.parentElement,
                 this.elements.metaContact.parentElement,
-                this.elements.connectedActivitySection
+                this.elements.connectedActivitySection,
+                this.elements.metaDiscipline.parentElement,
+                this.elements.metaStatus.parentElement
             ];
 
             zoneOnlyFields.forEach(el => {
-                if (el) el.style.display = isSymbol ? 'none' : 'block';
+                if (el) el.style.display = (isSymbol || isText || isMeasurement) ? 'none' : 'block';
             });
 
             // Connected Activity Display
@@ -644,6 +698,20 @@ class UIManager {
                     break;
                 case 'metaFreetext': 
                     if (zoneIds.length === 1) updates.freetext = value; 
+                    break;
+                case 'metaFontSize':
+                    const newSize = parseInt(value);
+                    updates.customData = { ...zone.customData, fontSize: newSize };
+                    
+                    // Auto-resize box to fit new font size
+                    if (this.canvasManager && this.canvasManager.ctx) {
+                        this.canvasManager.ctx.save();
+                        this.canvasManager.ctx.font = `${newSize}px Arial`;
+                        const metrics = this.canvasManager.ctx.measureText(zone.name);
+                        updates.width = metrics.width;
+                        updates.height = newSize * 1.2;
+                        this.canvasManager.ctx.restore();
+                    }
                     break;
                 case 'metaOpacity': updates.opacity = parseFloat(value); break;
                 case 'metaNoFill': updates.noFill = value; break;

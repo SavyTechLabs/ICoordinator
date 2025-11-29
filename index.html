@@ -81,6 +81,9 @@
                 <!-- Tools Tab -->
                 <div id="tab-tools" class="tab-pane">
                     <h2 data-i18n="tools">Verktyg</h2>
+                    
+                    <!-- Standard Tools -->
+                    <div class="tool-group-label" data-i18n="zones">Zoner</div>
                     <div class="tools-grid">
                         <button id="tool-select" class="tool-btn active" title="Markera/Flytta" data-i18n-title="select">
                             <span class="material-icons">near_me</span>
@@ -100,9 +103,55 @@
                         </button>
                     </div>
 
+                    <!-- Drawing Tools -->
+                    <div class="tool-group-label" data-i18n="drawing">Rita</div>
+                    <div class="tools-grid">
+                        <button id="tool-arrow" class="tool-btn" title="Pil" data-i18n-title="arrow">
+                            <span class="material-icons">arrow_right_alt</span>
+                            <span data-i18n="arrow">Pil</span>
+                        </button>
+                        <button id="tool-line" class="tool-btn" title="Linje" data-i18n-title="line">
+                            <span class="material-icons">show_chart</span>
+                            <span data-i18n="line">Linje</span>
+                        </button>
+                        <button id="tool-ellipse" class="tool-btn" title="Ellips" data-i18n-title="ellipse">
+                            <span class="material-icons">radio_button_unchecked</span>
+                            <span data-i18n="ellipse">Ellips</span>
+                        </button>
+                        <button id="tool-text" class="tool-btn" title="Text" data-i18n-title="text">
+                            <span class="material-icons">text_fields</span>
+                            <span data-i18n="text">Text</span>
+                        </button>
+                        <button id="tool-draw-poly" class="tool-btn" title="Polylinje" data-i18n-title="polyline">
+                            <span class="material-icons">polyline</span>
+                            <span data-i18n="polyline">Polylinje</span>
+                        </button>
+                        <button id="tool-draw-rect" class="tool-btn" title="Rektangel" data-i18n-title="rectangle">
+                            <span class="material-icons">crop_square</span>
+                            <span data-i18n="rectangle">Rektangel</span>
+                        </button>
+                    </div>
+
+                    <!-- Measurement Tools -->
+                    <div class="tool-group-label" data-i18n="measurement">Mäta</div>
+                    <div class="tools-grid">
+                        <button id="tool-measure-length" class="tool-btn" title="Mät Längd" data-i18n-title="measureLength">
+                            <span class="material-icons">straighten</span>
+                            <span data-i18n="length">Längd</span>
+                        </button>
+                        <button id="tool-measure-area" class="tool-btn" title="Mät Area" data-i18n-title="measureArea">
+                            <span class="material-icons">square_foot</span>
+                            <span data-i18n="area">Area</span>
+                        </button>
+                        <button id="tool-calibrate" class="tool-btn" title="Kalibrera Skala" data-i18n-title="calibrate">
+                            <span class="material-icons">architecture</span>
+                            <span data-i18n="calibrate">Kalibrera</span>
+                        </button>
+                    </div>
+
                     <div class="divider"></div>
 
-                    <h3>Symboler</h3>
+                    <h3 data-i18n="symbols">Symboler</h3>
                     <p class="text-muted small">Dra och släpp symboler till ritningen.</p>
                     
                     <div id="symbols-grid" class="symbols-grid">
@@ -258,6 +307,11 @@
                     <input type="text" id="meta-name" placeholder="Namnge zonen..." data-i18n-placeholder="nameZonePlaceholder">
                 </div>
 
+                <div class="form-group hidden" id="meta-font-size-group">
+                    <label data-i18n="fontSize">Teckenstorlek</label>
+                    <input type="number" id="meta-font-size" min="8" max="100" value="16">
+                </div>
+
                 <div class="form-group">
                     <label data-i18n="discipline">Disciplin</label>
                     <select id="meta-discipline">
@@ -305,6 +359,15 @@
                         <label style="font-size: 0.8rem; width: 70px;">Kantlinje:</label>
                         <input type="color" id="meta-border-color" class="color-input">
                         <div style="flex: 1;"></div> <!-- Spacer to align with above -->
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+                        <label style="font-size: 0.8rem; width: 70px;">Linjetyp:</label>
+                        <select id="meta-line-type" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
+                            <option value="solid">Heldragen</option>
+                            <option value="dashed">Streckad</option>
+                            <option value="dotted">Prickad</option>
+                        </select>
                     </div>
 
                     <div style="margin-top: 8px;">

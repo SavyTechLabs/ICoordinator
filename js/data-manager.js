@@ -58,6 +58,7 @@ class DataManager {
                     zones: [],
                     backgroundImage: null,
                     scale: 1,
+                    calibrationScale: 50, // Default pixels per meter (approx)
                     pan: { x: 0, y: 0 }
                 }
             ]
@@ -250,6 +251,7 @@ class DataManager {
                                 zones: loadedState.zones || [],
                                 backgroundImage: loadedState.backgroundImage || null,
                                 scale: 1,
+                                calibrationScale: 50,
                                 pan: { x: 0, y: 0 }
                             }
                         ]
@@ -293,6 +295,7 @@ class DataManager {
                         zones: [],
                         backgroundImage: null,
                         scale: 1,
+                        calibrationScale: 50,
                         pan: { x: 0, y: 0 }
                     }];
                     this.state.activeLayoutId = 'default';
@@ -396,6 +399,7 @@ class DataManager {
             zones: [],
             backgroundImage: null,
             scale: 1,
+            calibrationScale: 50, // Default pixels per meter
             pan: { x: 0, y: 0 }
         };
         

@@ -124,6 +124,44 @@ class CanvasManager {
         this.canvas.addEventListener('wheel', (e) => this.handleWheel(e));
         this.canvas.addEventListener('dragover', (e) => this.handleDragOver(e));
         this.canvas.addEventListener('drop', (e) => this.handleDrop(e));
+        this.canvas.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
+        window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+    }
+
+    handleKeyDown(e) {
+        if (e.key === 'Escape') {
+            if (this.isDrawing) {
+                // Cancel drawing
+                this.isDrawing = false;
+                this.polyPoints = [];
+                this.tempZone = null;
+                this.draw();
+            } else if (this.selectedZoneIds.size > 0) {
+                // Deselect
+                this.clearSelection();
+            }
+        } else if (e.key === 'Enter') {
+            if (this.isDrawing && (this.activeTool === 'poly' || this.activeTool === 'cloud' || this.activeTool === 'measure-area' || this.activeTool === 'draw-poly')) {
+                // Finish polygon/polyline
+                if (this.polyPoints.length > 1) {
+                    this.finishPolygon();
+                }
+            }
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            // Only delete if not editing text (though text editing usually captures focus)
+            if (this.selectedZoneIds.size > 0 && !this.isDrawing) {
+                this.deleteSelectedZones();
+            }
+        }
+    }
+
+    handleDoubleClick(e) {
+        const pos = this.getMousePos(e);
+        const zone = this.getZoneAt(pos);
+        
+        if (zone && zone.type === 'text') {
+            this.startEditingText(zone);
+        }
     }
 
     resizeCanvas() {
@@ -171,9 +209,57 @@ class CanvasManager {
             return;
         }
 
+        if (this.activeTool === 'text') {
+            this.isDrawing = true;
+            this.tempZone = {
+                x: pos.x,
+                y: pos.y,
+                width: 0,
+                height: 0,
+                type: 'text'
+            };
+            this.startPos = pos;
+            return;
+        }
+
         this.startPos = pos;
 
-        if (this.activeTool === 'draw') {
+        if (this.activeTool === 'calibrate') {
+            this.isDrawing = true;
+            this.tempZone = {
+                x: pos.x,
+                y: pos.y,
+                x2: pos.x,
+                y2: pos.y,
+                type: 'calibration-line'
+            };
+        } else if (this.activeTool === 'measure-length' || this.activeTool === 'arrow' || this.activeTool === 'line') {
+            this.isDrawing = true;
+            this.tempZone = {
+                x: pos.x,
+                y: pos.y,
+                x2: pos.x,
+                y2: pos.y,
+                type: this.activeTool
+            };
+        } else if (this.activeTool === 'measure-area') {
+            // Polygon-like drawing for area
+            if (this.polyPoints.length === 0) {
+                this.polyPoints.push(pos);
+                this.isDrawing = true;
+            } else {
+                // Check if closing loop (near first point)
+                const first = this.polyPoints[0];
+                const dist = Math.sqrt(Math.pow(pos.x - first.x, 2) + Math.pow(pos.y - first.y, 2));
+                
+                if (dist < 10 / this.scale && this.polyPoints.length > 2) {
+                    this.finishPolygon();
+                    return;
+                }
+                this.polyPoints.push(pos);
+            }
+            this.draw();
+        } else if (this.activeTool === 'draw' || this.activeTool === 'ellipse' || this.activeTool === 'draw-rect') {
             this.isDrawing = true;
             // Create a temporary zone
             this.tempZone = {
@@ -181,9 +267,9 @@ class CanvasManager {
                 y: pos.y,
                 width: 0,
                 height: 0,
-                type: 'rect'
+                type: this.activeTool === 'ellipse' ? 'ellipse' : 'rect'
             };
-        } else if (this.activeTool === 'poly' || this.activeTool === 'cloud') {
+        } else if (this.activeTool === 'poly' || this.activeTool === 'cloud' || this.activeTool === 'measure-area' || this.activeTool === 'draw-poly') {
             // Polygon/Cloud drawing logic
             if (this.polyPoints.length === 0) {
                 this.polyPoints.push(pos);
@@ -209,6 +295,35 @@ class CanvasManager {
                 
                 if (this.resizeHandle === 'rotate') {
                     this.isRotating = true;
+                    return;
+                }
+
+                if (this.resizeHandle === 'add-start' || this.resizeHandle === 'add-end') {
+                    // Continue drawing from existing polyline
+                    this.editingZoneId = zone.id;
+                    this.activeTool = 'draw-poly';
+                    this.isDrawing = true;
+                    
+                    // If adding to start, we need to reverse points so we append to the "end" of our drawing array
+                    // But wait, if we reverse, we need to reverse back when saving.
+                    // Simpler: Just track if we are prepending or appending.
+                    // Actually, standard drawing appends.
+                    // If 'add-end', we just load points as is.
+                    // If 'add-start', we reverse points, so new points are appended, then we reverse back on finish.
+                    
+                    if (this.resizeHandle === 'add-start') {
+                        this.polyPoints = [...zone.points].reverse();
+                        this.isReversePoly = true;
+                    } else {
+                        this.polyPoints = [...zone.points];
+                        this.isReversePoly = false;
+                    }
+                    
+                    // Add the first new point immediately at mouse pos? 
+                    // No, user clicked the handle. We are now in "drawing mode" with the last point being the handle.
+                    // The next click will add a point.
+                    this.uiManager.updateToolState('draw-poly');
+                    this.draw();
                     return;
                 }
                 
@@ -317,11 +432,21 @@ class CanvasManager {
             return;
         }
 
-        if (this.activeTool === 'draw' && this.isDrawing) {
+        if (this.activeTool === 'calibrate' && this.isDrawing) {
+            this.tempZone.x2 = pos.x;
+            this.tempZone.y2 = pos.y;
+            this.draw();
+        } else if ((this.activeTool === 'measure-length' || this.activeTool === 'arrow' || this.activeTool === 'line') && this.isDrawing) {
+            this.tempZone.x2 = pos.x;
+            this.tempZone.y2 = pos.y;
+            this.draw();
+        } else if (this.activeTool === 'measure-area' && this.isDrawing) {
+            this.draw(); // Redraw to show line to cursor
+        } else if ((this.activeTool === 'draw' || this.activeTool === 'ellipse' || this.activeTool === 'text' || this.activeTool === 'draw-rect') && this.isDrawing) {
             this.tempZone.width = pos.x - this.startPos.x;
             this.tempZone.height = pos.y - this.startPos.y;
             this.draw();
-        } else if ((this.activeTool === 'poly' || this.activeTool === 'cloud') && this.isDrawing) {
+        } else if ((this.activeTool === 'poly' || this.activeTool === 'cloud' || this.activeTool === 'draw-poly') && this.isDrawing) {
             this.draw(); // Redraw to show line to cursor
         } else if (this.isRotating && this.selectedZoneId) {
             const zone = this.dataManager.getZone(this.selectedZoneId);
@@ -395,7 +520,106 @@ class CanvasManager {
     }
 
     handleMouseUp(e) {
-        if (this.activeTool === 'draw' && this.isDrawing) {
+        if (this.activeTool === 'calibrate' && this.isDrawing) {
+            this.isDrawing = false;
+            const dx = this.tempZone.x2 - this.tempZone.x;
+            const dy = this.tempZone.y2 - this.tempZone.y;
+            const distPixels = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distPixels > 10) {
+                const distMeters = prompt(this.uiManager.t('enterDistanceMeters'), "1.0");
+                if (distMeters && !isNaN(parseFloat(distMeters))) {
+                    const meters = parseFloat(distMeters);
+                    const pixelsPerMeter = distPixels / meters;
+                    
+                    this.dataManager.updateActiveLayout({
+                        calibrationScale: pixelsPerMeter
+                    });
+                    
+                    alert(`${this.uiManager.t('calibrationSaved')}: ${pixelsPerMeter.toFixed(2)} px/m`);
+                }
+            }
+            this.tempZone = null;
+            this.setTool('select');
+            this.draw();
+            return;
+        }
+
+        if ((this.activeTool === 'measure-length' || this.activeTool === 'arrow' || this.activeTool === 'line') && this.isDrawing) {
+            this.isDrawing = false;
+            const dx = this.tempZone.x2 - this.tempZone.x;
+            const dy = this.tempZone.y2 - this.tempZone.y;
+            const distPixels = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distPixels > 5) {
+                const zone = {
+                    id: generateUUID(),
+                    x: this.tempZone.x,
+                    y: this.tempZone.y,
+                    x2: this.tempZone.x2,
+                    y2: this.tempZone.y2,
+                    type: this.activeTool,
+                    color: '#FF0000',
+                    opacity: 1,
+                    name: this.uiManager.t(this.activeTool === 'measure-length' ? 'length' : (this.activeTool === 'arrow' ? 'arrow' : 'line')),
+                    discipline: '',
+                    status: '',
+                    comments: '',
+                    customData: {}
+                };
+                this.dataManager.addZone(zone);
+                this.selectZone(zone.id);
+                this.setTool('select');
+            }
+            this.tempZone = null;
+            this.draw();
+            return;
+        }
+
+        if (this.activeTool === 'text' && this.isDrawing) {
+            this.isDrawing = false;
+            
+            // Normalize zone
+            const width = Math.abs(this.tempZone.width);
+            const height = Math.abs(this.tempZone.height);
+            const x = Math.min(this.startPos.x, this.currentPos.x);
+            const y = Math.min(this.startPos.y, this.currentPos.y);
+
+            // Default size if click instead of drag
+            const finalWidth = width < 10 ? 100 : width;
+            const finalHeight = height < 10 ? 20 : height;
+            
+            // Calculate font size based on height (approx 80% of box height)
+            const fontSize = Math.max(10, Math.round(finalHeight * 0.8));
+
+            const zone = {
+                id: generateUUID(),
+                x: x,
+                y: y,
+                width: finalWidth,
+                height: finalHeight,
+                type: 'text',
+                color: '#000000',
+                opacity: 1,
+                name: '', // Start empty
+                discipline: '',
+                status: '',
+                comments: '',
+                customData: { fontSize: fontSize }
+            };
+            
+            this.dataManager.addZone(zone);
+            this.selectZone(zone.id);
+            this.setTool('select');
+            this.tempZone = null;
+            this.draw();
+            
+            // Start editing immediately
+            this.startEditingText(zone);
+            return;
+        }
+
+        if ((this.activeTool === 'draw' || this.activeTool === 'ellipse' || this.activeTool === 'draw-rect') && this.isDrawing) {
             this.isDrawing = false;
             // Normalize zone (negative width/height)
             const zone = {
@@ -404,10 +628,10 @@ class CanvasManager {
                 y: Math.min(this.startPos.y, this.currentPos.y),
                 width: Math.abs(this.tempZone.width),
                 height: Math.abs(this.tempZone.height),
-                type: 'rect',
+                type: this.activeTool === 'ellipse' ? 'ellipse' : (this.activeTool === 'draw-rect' ? 'draw-rect' : 'rect'),
                 color: '#2563EB', // Default color
                 opacity: 0.5,
-                name: this.uiManager.t('newZone'),
+                name: this.uiManager.t(this.activeTool === 'ellipse' ? 'ellipse' : (this.activeTool === 'draw-rect' ? 'rectangle' : 'newZone')),
                 discipline: '',
                 status: 'planned',
                 comments: '',
@@ -508,9 +732,34 @@ class CanvasManager {
         
         for (let i = zones.length - 1; i >= 0; i--) {
             const z = zones[i];
-            if (z.type === 'polygon' || z.type === 'cloud') {
+            if (z.type === 'polygon' || z.type === 'cloud' || z.type === 'measure-area') {
                 if (this.isPointInPolygon(pos, z.points)) {
                     return z;
+                }
+            } else if (z.type === 'draw-poly') {
+                // Check distance to any segment
+                if (z.points && z.points.length > 1) {
+                    for (let j = 0; j < z.points.length - 1; j++) {
+                        const p1 = z.points[j];
+                        const p2 = z.points[j+1];
+                        const dist = this.distToSegment(pos, p1, p2);
+                        if (dist < 10 / this.scale) return z;
+                    }
+                }
+            } else if (z.type === 'measure-length' || z.type === 'arrow' || z.type === 'line') {
+                // Check distance to line segment
+                const dist = this.distToSegment(pos, {x: z.x, y: z.y}, {x: z.x2, y: z.y2});
+                if (dist < 10 / this.scale) return z;
+            } else if (z.type === 'ellipse') {
+                // Check if point is inside ellipse
+                const cx = z.x + z.width / 2;
+                const cy = z.y + z.height / 2;
+                const rx = z.width / 2;
+                const ry = z.height / 2;
+                // Avoid division by zero
+                if (rx > 0 && ry > 0) {
+                    const normalized = Math.pow(pos.x - cx, 2) / Math.pow(rx, 2) + Math.pow(pos.y - cy, 2) / Math.pow(ry, 2);
+                    if (normalized <= 1) return z;
                 }
             } else {
                 if (pos.x >= z.x && pos.x <= z.x + z.width &&
@@ -520,6 +769,15 @@ class CanvasManager {
             }
         }
         return null;
+    }
+
+    distToSegment(p, v, w) {
+        const l2 = (w.x - v.x)**2 + (w.y - v.y)**2;
+        if (l2 === 0) return Math.sqrt((p.x - v.x)**2 + (p.y - v.y)**2);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const proj = { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+        return Math.sqrt((p.x - proj.x)**2 + (p.y - proj.y)**2);
     }
 
     isPointInPolygon(point, vs) {
@@ -550,7 +808,13 @@ class CanvasManager {
             }
         }
 
-        if (zone.type === 'polygon' || zone.type === 'cloud') {
+        if (zone.type === 'measure-length' || zone.type === 'calibration-line' || zone.type === 'arrow' || zone.type === 'line') {
+            if (Math.abs(pos.x - zone.x) < handleSize && Math.abs(pos.y - zone.y) < handleSize) return 'start';
+            if (Math.abs(pos.x - zone.x2) < handleSize && Math.abs(pos.y - zone.y2) < handleSize) return 'end';
+            return null;
+        }
+
+        if (zone.type === 'polygon' || zone.type === 'cloud' || zone.type === 'measure-area' || zone.type === 'draw-poly') {
             // Check each vertex
             for (let i = 0; i < zone.points.length; i++) {
                 const p = zone.points[i];
@@ -558,6 +822,51 @@ class CanvasManager {
                     return i; // Return index of vertex
                 }
             }
+
+            // Check for "Continue" handles (Plus signs) for draw-poly
+            if (zone.type === 'draw-poly' && zone.points.length > 0) {
+                const start = zone.points[0];
+                const end = zone.points[zone.points.length - 1];
+                
+                // Offset the handles slightly away from the line to avoid overlap with vertex handle
+                // For now, just put them on the point but maybe larger or distinct?
+                // User asked for a "+" sign. Let's check a slightly larger area or specific offset?
+                // Let's put them exactly on the point but check them *before* vertices? 
+                // No, vertices are for moving. The "+" should probably be an extension.
+                // Let's put them 20px away from the endpoint in the direction of the line?
+                // Or just check if we are clicking the "+" icon which we will draw near the endpoint.
+                
+                // Let's define the "+" handle position.
+                // Start handle:
+                if (zone.points.length > 1) {
+                    // Vector from p1 to p0
+                    const p0 = zone.points[0];
+                    const p1 = zone.points[1];
+                    const dx = p0.x - p1.x;
+                    const dy = p0.y - p1.y;
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    const offset = 20 / this.scale;
+                    const hx = p0.x + (dx/len) * offset;
+                    const hy = p0.y + (dy/len) * offset;
+                    
+                    if (Math.abs(pos.x - hx) < handleSize && Math.abs(pos.y - hy) < handleSize) return 'add-start';
+                }
+
+                // End handle:
+                if (zone.points.length > 1) {
+                    const pn = zone.points[zone.points.length - 1];
+                    const pn1 = zone.points[zone.points.length - 2];
+                    const dx = pn.x - pn1.x;
+                    const dy = pn.y - pn1.y;
+                    const len = Math.sqrt(dx*dx + dy*dy);
+                    const offset = 20 / this.scale;
+                    const hx = pn.x + (dx/len) * offset;
+                    const hy = pn.y + (dy/len) * offset;
+                    
+                    if (Math.abs(pos.x - hx) < handleSize && Math.abs(pos.y - hy) < handleSize) return 'add-end';
+                }
+            }
+
             return null;
         } else {
             // Check corners
@@ -570,10 +879,57 @@ class CanvasManager {
     }
 
     resizeZone(zone, pos) {
-        if (zone.type === 'polygon' || zone.type === 'cloud') {
+        if (zone.type === 'measure-length' || zone.type === 'calibration-line' || zone.type === 'arrow' || zone.type === 'line') {
+            if (this.resizeHandle === 'start') {
+                this.dataManager.updateZone({ ...zone, x: pos.x, y: pos.y });
+            } else if (this.resizeHandle === 'end') {
+                this.dataManager.updateZone({ ...zone, x2: pos.x, y2: pos.y });
+            }
+            return;
+        }
+
+        if (zone.type === 'text') {
+            // Special resize for text: Scale font size with height
+            let newHeight = zone.height;
+            let newY = zone.y;
+
+            if (this.resizeHandle.includes('t')) {
+                const dy = pos.y - zone.y;
+                newY += dy;
+                newHeight -= dy;
+            }
+            if (this.resizeHandle.includes('b')) {
+                newHeight = pos.y - zone.y;
+            }
+
+            if (newHeight > 5) {
+                const newFontSize = Math.round(newHeight / 1.2);
+                this.ctx.save();
+                this.ctx.font = `${newFontSize}px Arial`;
+                const metrics = this.ctx.measureText(zone.name);
+                this.ctx.restore();
+
+                this.dataManager.updateZone({
+                    ...zone,
+                    y: newY,
+                    height: newHeight,
+                    width: metrics.width,
+                    customData: { ...zone.customData, fontSize: newFontSize }
+                });
+                
+                // Update UI if selected
+                if (this.selectedZoneId === zone.id) {
+                    const fontSizeInput = document.getElementById('meta-font-size');
+                    if (fontSizeInput) fontSizeInput.value = newFontSize;
+                }
+            }
+            return;
+        }
+
+        if (zone.type === 'polygon' || zone.type === 'cloud' || zone.type === 'measure-area' || zone.type === 'draw-poly') {
             // Move vertex
             const index = this.resizeHandle;
-            if (index !== null && index >= 0 && index < zone.points.length) {
+            if (index !== null && typeof index === 'number' && index >= 0 && index < zone.points.length) {
                 const newPoints = [...zone.points];
                 newPoints[index] = { x: pos.x, y: pos.y };
                 
@@ -627,18 +983,55 @@ class CanvasManager {
 
     finishPolygon() {
         this.isDrawing = false;
+        
+        // Handle editing existing zone
+        if (this.editingZoneId) {
+            const zone = this.dataManager.getZone(this.editingZoneId);
+            if (zone) {
+                let finalPoints = [...this.polyPoints];
+                if (this.isReversePoly) {
+                    finalPoints.reverse();
+                }
+                
+                // Recalculate bounds
+                const x = Math.min(...finalPoints.map(p => p.x));
+                const y = Math.min(...finalPoints.map(p => p.y));
+                const width = Math.max(...finalPoints.map(p => p.x)) - x;
+                const height = Math.max(...finalPoints.map(p => p.y)) - y;
+
+                this.dataManager.updateZone({
+                    ...zone,
+                    points: finalPoints,
+                    x, y, width, height
+                });
+                this.selectZone(zone.id);
+            }
+            
+            this.editingZoneId = null;
+            this.isReversePoly = false;
+            this.polyPoints = [];
+            this.setTool('select');
+            this.draw();
+            return;
+        }
+
+        let type = 'polygon';
+        if (this.activeTool === 'cloud') type = 'cloud';
+        if (this.activeTool === 'measure-area') type = 'measure-area';
+        if (this.activeTool === 'draw-poly') type = 'draw-poly';
+
         const zone = {
             id: generateUUID(),
-            type: this.activeTool === 'cloud' ? 'cloud' : 'polygon',
+            type: type,
             points: [...this.polyPoints],
             // Calculate bounding box for simple checks
             x: Math.min(...this.polyPoints.map(p => p.x)),
             y: Math.min(...this.polyPoints.map(p => p.y)),
             width: Math.max(...this.polyPoints.map(p => p.x)) - Math.min(...this.polyPoints.map(p => p.x)),
             height: Math.max(...this.polyPoints.map(p => p.y)) - Math.min(...this.polyPoints.map(p => p.y)),
-            color: this.activeTool === 'cloud' ? '#94A3B8' : '#2563EB',
+            color: this.activeTool === 'cloud' ? '#94A3B8' : (this.activeTool === 'measure-area' ? '#FF0000' : '#2563EB'),
             opacity: 0.5,
-            name: this.activeTool === 'cloud' ? this.uiManager.t('cloud') : this.uiManager.t('newPolygon'),
+            name: this.activeTool === 'cloud' ? this.uiManager.t('cloud') : (this.activeTool === 'measure-area' ? this.uiManager.t('area') : (this.activeTool === 'draw-poly' ? this.uiManager.t('polyline') : this.uiManager.t('newPolygon'))),
             discipline: '',
             status: 'planned',
             comments: '',
@@ -721,7 +1114,7 @@ class CanvasManager {
             });
 
             // Draw Temp Zone (while drawing rect)
-            if (this.activeTool === 'draw' && this.isDrawing && this.tempZone) {
+            if ((this.activeTool === 'draw' || this.activeTool === 'text' || this.activeTool === 'draw-rect') && this.isDrawing && this.tempZone) {
                 this.ctx.fillStyle = 'rgba(37, 99, 235, 0.3)';
                 this.ctx.strokeStyle = '#2563EB';
                 this.ctx.lineWidth = 2 / this.scale;
@@ -729,9 +1122,87 @@ class CanvasManager {
                 this.ctx.strokeRect(this.tempZone.x, this.tempZone.y, this.tempZone.width, this.tempZone.height);
             }
 
+            // Draw Temp Ellipse
+            if (this.activeTool === 'ellipse' && this.isDrawing && this.tempZone) {
+                this.ctx.fillStyle = 'rgba(37, 99, 235, 0.3)';
+                this.ctx.strokeStyle = '#2563EB';
+                this.ctx.lineWidth = 2 / this.scale;
+                
+                this.ctx.beginPath();
+                const cx = this.tempZone.x + this.tempZone.width / 2;
+                const cy = this.tempZone.y + this.tempZone.height / 2;
+                const rx = Math.abs(this.tempZone.width / 2);
+                const ry = Math.abs(this.tempZone.height / 2);
+                this.ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+                this.ctx.fill();
+                this.ctx.stroke();
+                this.ctx.strokeRect(this.tempZone.x, this.tempZone.y, this.tempZone.width, this.tempZone.height);
+            }
+
+            // Draw Temp Line/Arrow/Measure
+            if ((this.activeTool === 'measure-length' || this.activeTool === 'arrow' || this.activeTool === 'line' || this.activeTool === 'calibrate') && this.isDrawing && this.tempZone) {
+                const z = this.tempZone;
+                this.ctx.beginPath();
+                this.ctx.moveTo(z.x, z.y);
+                this.ctx.lineTo(z.x2, z.y2);
+                this.ctx.strokeStyle = '#2563EB'; 
+                if (this.activeTool === 'measure-length' || this.activeTool === 'calibrate') this.ctx.strokeStyle = '#FF0000';
+                this.ctx.lineWidth = 2 / this.scale;
+                this.ctx.stroke();
+
+                // Arrow Head
+                if (this.activeTool === 'arrow') {
+                    const angle = Math.atan2(z.y2 - z.y, z.x2 - z.x);
+                    const headLen = 15 / this.scale;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(z.x2, z.y2);
+                    this.ctx.lineTo(z.x2 - headLen * Math.cos(angle - Math.PI / 6), z.y2 - headLen * Math.sin(angle - Math.PI / 6));
+                    this.ctx.lineTo(z.x2 - headLen * Math.cos(angle + Math.PI / 6), z.y2 - headLen * Math.sin(angle + Math.PI / 6));
+                    this.ctx.lineTo(z.x2, z.y2);
+                    this.ctx.fillStyle = '#2563EB';
+                    this.ctx.fill();
+                }
+
+                // Measure Label
+                if (this.activeTool === 'measure-length' || this.activeTool === 'calibrate') {
+                    // Ticks
+                    const angle = Math.atan2(z.y2 - z.y, z.x2 - z.x);
+                    const tickSize = 10 / this.scale;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(z.x + tickSize * Math.cos(angle + Math.PI/2), z.y + tickSize * Math.sin(angle + Math.PI/2));
+                    this.ctx.lineTo(z.x + tickSize * Math.cos(angle - Math.PI/2), z.y + tickSize * Math.sin(angle - Math.PI/2));
+                    this.ctx.moveTo(z.x2 + tickSize * Math.cos(angle + Math.PI/2), z.y2 + tickSize * Math.sin(angle + Math.PI/2));
+                    this.ctx.lineTo(z.x2 + tickSize * Math.cos(angle - Math.PI/2), z.y2 + tickSize * Math.sin(angle - Math.PI/2));
+                    this.ctx.stroke();
+                    
+                    // Distance
+                    const dx = z.x2 - z.x;
+                    const dy = z.y2 - z.y;
+                    const distPixels = Math.sqrt(dx*dx + dy*dy);
+                    
+                    let text = `${Math.round(distPixels)} px`;
+                    if (this.activeTool === 'measure-length') {
+                        const layout = this.dataManager.getActiveLayout();
+                        const scale = layout.calibrationScale || 50;
+                        const distMeters = distPixels / scale;
+                        text = `${distMeters.toFixed(2)} m`;
+                    }
+
+                    const midX = (z.x + z.x2) / 2;
+                    const midY = (z.y + z.y2) / 2;
+                    this.ctx.fillStyle = '#FF0000';
+                    this.ctx.strokeStyle = 'white';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.font = `bold ${14 / this.scale}px Arial`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.strokeText(text, midX, midY - 10/this.scale);
+                    this.ctx.fillText(text, midX, midY - 10/this.scale);
+                }
+            }
+
             // Draw Temp Polygon/Cloud (while drawing poly)
-            if ((this.activeTool === 'poly' || this.activeTool === 'cloud') && this.polyPoints && this.polyPoints.length > 0) {
-                this.ctx.strokeStyle = this.activeTool === 'cloud' ? '#94A3B8' : '#2563EB';
+            if ((this.activeTool === 'poly' || this.activeTool === 'cloud' || this.activeTool === 'measure-area' || this.activeTool === 'draw-poly') && this.polyPoints && this.polyPoints.length > 0) {
+                this.ctx.strokeStyle = this.activeTool === 'cloud' ? '#94A3B8' : (this.activeTool === 'measure-area' ? '#FF0000' : '#2563EB');
                 this.ctx.lineWidth = 2 / this.scale;
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.polyPoints[0].x, this.polyPoints[0].y);
@@ -745,7 +1216,7 @@ class CanvasManager {
                 this.ctx.stroke();
 
                 // Draw points
-                this.ctx.fillStyle = this.activeTool === 'cloud' ? '#94A3B8' : '#2563EB';
+                this.ctx.fillStyle = this.activeTool === 'cloud' ? '#94A3B8' : (this.activeTool === 'measure-area' ? '#FF0000' : '#2563EB');
                 this.polyPoints.forEach(p => {
                     this.ctx.beginPath();
                     this.ctx.arc(p.x, p.y, 4 / this.scale, 0, Math.PI * 2);
@@ -816,12 +1287,18 @@ class CanvasManager {
             }
         }
 
-        // Handle Hidden State
+        // Handle Hidden State and Line Type
         if (zone.hidden) {
             this.ctx.setLineDash([5 / this.scale, 5 / this.scale]);
             this.ctx.globalAlpha = 0.5;
         } else {
-            this.ctx.setLineDash([]);
+            if (zone.lineType === 'dashed') {
+                this.ctx.setLineDash([10 / this.scale, 5 / this.scale]);
+            } else if (zone.lineType === 'dotted') {
+                this.ctx.setLineDash([2 / this.scale, 5 / this.scale]);
+            } else {
+                this.ctx.setLineDash([]);
+            }
             this.ctx.globalAlpha = 1.0;
         }
 
@@ -931,7 +1408,155 @@ class CanvasManager {
                 this.ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
                 this.ctx.fillText("?", zone.x + zone.width/2, zone.y + zone.height/2);
             }
-        } else if (zone.type === 'polygon' || zone.type === 'cloud') {
+        } else if (zone.type === 'calibration-line') {
+            // Draw Calibration Line (Temporary)
+            this.ctx.beginPath();
+            this.ctx.moveTo(zone.x, zone.y);
+            this.ctx.lineTo(zone.x2, zone.y2);
+            this.ctx.strokeStyle = '#FF0000';
+            this.ctx.lineWidth = 2 / this.scale;
+            this.ctx.stroke();
+            
+            // Draw endpoints
+            this.ctx.fillStyle = '#FF0000';
+            this.ctx.beginPath();
+            this.ctx.arc(zone.x, zone.y, 4 / this.scale, 0, Math.PI * 2);
+            this.ctx.arc(zone.x2, zone.y2, 4 / this.scale, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Draw label
+            const dx = zone.x2 - zone.x;
+            const dy = zone.y2 - zone.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const midX = (zone.x + zone.x2) / 2;
+            const midY = (zone.y + zone.y2) / 2;
+            
+            this.ctx.fillStyle = 'white';
+            this.ctx.strokeStyle = 'black';
+            this.ctx.lineWidth = 3;
+            this.ctx.font = `${14 / this.scale}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.strokeText(`${Math.round(dist)} px`, midX, midY - 10/this.scale);
+            this.ctx.fillText(`${Math.round(dist)} px`, midX, midY - 10/this.scale);
+
+        } else if (zone.type === 'measure-length' || zone.type === 'arrow' || zone.type === 'line') {
+            // Draw Line
+            this.ctx.beginPath();
+            this.ctx.moveTo(zone.x, zone.y);
+            this.ctx.lineTo(zone.x2, zone.y2);
+            this.ctx.strokeStyle = zone.color || '#FF0000';
+            this.ctx.lineWidth = 2 / this.scale;
+            this.ctx.stroke();
+
+            // Arrow Head
+            if (zone.type === 'arrow') {
+                const angle = Math.atan2(zone.y2 - zone.y, zone.x2 - zone.x);
+                const headLen = 15 / this.scale;
+                this.ctx.beginPath();
+                this.ctx.moveTo(zone.x2, zone.y2);
+                this.ctx.lineTo(zone.x2 - headLen * Math.cos(angle - Math.PI / 6), zone.y2 - headLen * Math.sin(angle - Math.PI / 6));
+                this.ctx.lineTo(zone.x2 - headLen * Math.cos(angle + Math.PI / 6), zone.y2 - headLen * Math.sin(angle + Math.PI / 6));
+                this.ctx.lineTo(zone.x2, zone.y2);
+                this.ctx.fillStyle = zone.color || '#FF0000';
+                this.ctx.fill();
+            }
+            
+            // Draw endpoints (ticks) for measure-length
+            if (zone.type === 'measure-length') {
+                const angle = Math.atan2(zone.y2 - zone.y, zone.x2 - zone.x);
+                const tickSize = 10 / this.scale;
+                
+                this.ctx.beginPath();
+                // Start tick
+                this.ctx.moveTo(zone.x + tickSize * Math.cos(angle + Math.PI/2), zone.y + tickSize * Math.sin(angle + Math.PI/2));
+                this.ctx.lineTo(zone.x + tickSize * Math.cos(angle - Math.PI/2), zone.y + tickSize * Math.sin(angle - Math.PI/2));
+                // End tick
+                this.ctx.moveTo(zone.x2 + tickSize * Math.cos(angle + Math.PI/2), zone.y2 + tickSize * Math.sin(angle + Math.PI/2));
+                this.ctx.lineTo(zone.x2 + tickSize * Math.cos(angle - Math.PI/2), zone.y2 + tickSize * Math.sin(angle - Math.PI/2));
+                this.ctx.stroke();
+
+                // Calculate real distance
+                const dx = zone.x2 - zone.x;
+                const dy = zone.y2 - zone.y;
+                const distPixels = Math.sqrt(dx*dx + dy*dy);
+                
+                const layout = this.dataManager.getActiveLayout();
+                const scale = layout.calibrationScale || 50; // Default 50px/m
+                const distMeters = distPixels / scale;
+                
+                // Draw label
+                const midX = (zone.x + zone.x2) / 2;
+                const midY = (zone.y + zone.y2) / 2;
+                
+                this.ctx.fillStyle = zone.color || '#FF0000';
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 3;
+                this.ctx.font = `bold ${14 / this.scale}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.strokeText(`${distMeters.toFixed(2)} m`, midX, midY - 10/this.scale);
+                this.ctx.fillText(`${distMeters.toFixed(2)} m`, midX, midY - 10/this.scale);
+            }
+            
+            if (isSelected) {
+                this.ctx.strokeStyle = '#000';
+                this.ctx.lineWidth = 1 / this.scale;
+                this.ctx.strokeRect(zone.x - 5/this.scale, zone.y - 5/this.scale, 10/this.scale, 10/this.scale);
+                this.ctx.strokeRect(zone.x2 - 5/this.scale, zone.y2 - 5/this.scale, 10/this.scale, 10/this.scale);
+            }
+
+        } else if (zone.type === 'ellipse') {
+            this.ctx.beginPath();
+            const cx = zone.x + zone.width / 2;
+            const cy = zone.y + zone.height / 2;
+            const rx = zone.width / 2;
+            const ry = zone.height / 2;
+            this.ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+            if (!zone.noFill) {
+                this.ctx.fill();
+            }
+            this.ctx.stroke();
+            
+            if (isSelected) {
+                this.ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+            }
+
+        } else if (zone.type === 'text') {
+            const fontSize = (zone.customData && zone.customData.fontSize) || 16;
+            // Use world-space font size so it scales with zoom, keeping bounding box valid
+            this.ctx.font = `${fontSize}px Arial`;
+            this.ctx.fillStyle = zone.color || '#000000';
+            
+            // Center text in bounding box
+            this.ctx.textBaseline = 'middle';
+            this.ctx.textAlign = 'center';
+            const cx = zone.x + zone.width / 2;
+            const cy = zone.y + zone.height / 2;
+            
+            // Handle multi-line text if needed (simple split by newline)
+            const lines = (zone.name || '').split('\n');
+            if (lines.length > 1) {
+                const lineHeight = fontSize * 1.2;
+                const totalHeight = lines.length * lineHeight;
+                let startY = cy - totalHeight / 2 + lineHeight / 2;
+                
+                lines.forEach((line, i) => {
+                    this.ctx.fillText(line, cx, startY + i * lineHeight);
+                });
+            } else {
+                this.ctx.fillText(zone.name, cx, cy);
+            }
+            
+            // Reset alignment
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'alphabetic';
+            
+            if (isSelected) {
+                this.ctx.strokeStyle = '#000';
+                this.ctx.lineWidth = 1 / this.scale;
+                this.ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+            }
+
+        } else if (zone.type === 'polygon' || zone.type === 'cloud' || zone.type === 'measure-area' || zone.type === 'draw-poly') {
             this.ctx.beginPath();
             if (zone.points && zone.points.length > 0) {
                 if (zone.type === 'cloud') {
@@ -982,13 +1607,51 @@ class CanvasManager {
                     for (let i = 1; i < zone.points.length; i++) {
                         this.ctx.lineTo(zone.points[i].x, zone.points[i].y);
                     }
-                    this.ctx.closePath();
+                    if (zone.type !== 'draw-poly') {
+                        this.ctx.closePath();
+                    }
                 }
             }
-            if (!zone.noFill) {
+            if (!zone.noFill && zone.type !== 'draw-poly') {
                 this.ctx.fill();
             }
             this.ctx.stroke();
+
+            if (zone.type === 'measure-area' && zone.points && zone.points.length > 2) {
+                // Calculate Area
+                let area = 0;
+                for (let i = 0; i < zone.points.length; i++) {
+                    const p1 = zone.points[i];
+                    const p2 = zone.points[(i + 1) % zone.points.length];
+                    area += (p1.x * p2.y - p2.x * p1.y);
+                }
+                area = Math.abs(area / 2);
+                
+                const layout = this.dataManager.getActiveLayout();
+                const scale = layout.calibrationScale || 50;
+                const areaMeters = area / (scale * scale);
+                
+                // Draw Label
+                // Calculate centroid
+                let cx = 0, cy = 0;
+                for (let p of zone.points) {
+                    cx += p.x;
+                    cy += p.y;
+                }
+                cx /= zone.points.length;
+                cy /= zone.points.length;
+                
+                this.ctx.fillStyle = 'white';
+                this.ctx.strokeStyle = 'black';
+                this.ctx.lineWidth = 3 / this.scale;
+                this.ctx.font = `bold ${14 / this.scale}px Arial`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                
+                const text = `${areaMeters.toFixed(2)} m²`;
+                this.ctx.strokeText(text, cx, cy);
+                this.ctx.fillText(text, cx, cy);
+            }
         } else {
             if (!zone.noFill) {
                 this.ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
@@ -1001,7 +1664,7 @@ class CanvasManager {
         this.ctx.globalAlpha = 1.0;
 
         // Draw Label (Skip for symbols unless they have a name override?)
-        if (zone.type !== 'symbol' && zone.type !== 'cloud') {
+        if (zone.type !== 'symbol' && zone.type !== 'cloud' && zone.type !== 'measure-area' && zone.type !== 'measure-length' && zone.type !== 'calibration-line' && zone.type !== 'text' && zone.type !== 'arrow' && zone.type !== 'line' && zone.type !== 'draw-poly' && zone.type !== 'draw-rect') {
             this.ctx.fillStyle = 'white';
             this.ctx.font = `${14 / renderScale}px Inter`;
             this.ctx.shadowColor = "rgba(0,0,0,0.5)";
@@ -1073,7 +1736,7 @@ class CanvasManager {
         this.ctx.lineWidth = 1 / this.scale;
 
         let coords = [];
-        if (zone.type === 'polygon' || zone.type === 'cloud') {
+        if (zone.type === 'polygon' || zone.type === 'cloud' || zone.type === 'measure-area' || zone.type === 'draw-poly') {
             coords = zone.points;
         } else {
             coords = [
@@ -1090,6 +1753,43 @@ class CanvasManager {
             this.ctx.fill();
             this.ctx.stroke();
         });
+
+        // Draw "+" handles for draw-poly
+        if (zone.type === 'draw-poly' && zone.points.length > 1) {
+            const drawPlus = (x, y) => {
+                const size = 12 / this.scale;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size/2, 0, Math.PI * 2);
+                this.ctx.fillStyle = '#2563EB';
+                this.ctx.fill();
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(x - size/4, y);
+                this.ctx.lineTo(x + size/4, y);
+                this.ctx.moveTo(x, y - size/4);
+                this.ctx.lineTo(x, y + size/4);
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 2 / this.scale;
+                this.ctx.stroke();
+            };
+
+            // Start Handle
+            const p0 = zone.points[0];
+            const p1 = zone.points[1];
+            const dx = p0.x - p1.x;
+            const dy = p0.y - p1.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const offset = 20 / this.scale;
+            drawPlus(p0.x + (dx/len) * offset, p0.y + (dy/len) * offset);
+
+            // End Handle
+            const pn = zone.points[zone.points.length - 1];
+            const pn1 = zone.points[zone.points.length - 2];
+            const dx2 = pn.x - pn1.x;
+            const dy2 = pn.y - pn1.y;
+            const len2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+            drawPlus(pn.x + (dx2/len2) * offset, pn.y + (dy2/len2) * offset);
+        }
 
         // Rotation Handle for Symbols
         if (zone.type === 'symbol') {
@@ -1110,6 +1810,78 @@ class CanvasManager {
             this.ctx.fill();
             this.ctx.stroke();
         }
+    }
+
+    // --- Text Editing ---
+
+    startEditingText(zone) {
+        // Remove existing editor if any
+        const existing = document.getElementById('text-editor-overlay');
+        if (existing) existing.remove();
+
+        // Create textarea
+        const textarea = document.createElement('textarea');
+        textarea.id = 'text-editor-overlay';
+        textarea.value = zone.name;
+        
+        // Calculate screen position
+        const rect = this.canvas.getBoundingClientRect();
+        const screenX = rect.left + this.offsetX + zone.x * this.scale;
+        const screenY = rect.top + this.offsetY + zone.y * this.scale;
+        const screenW = zone.width * this.scale;
+        const screenH = zone.height * this.scale;
+        
+        const fontSize = (zone.customData && zone.customData.fontSize) || 16;
+        const screenFontSize = fontSize * this.scale; // Scale font size to screen
+
+        // Style
+        textarea.style.position = 'absolute';
+        textarea.style.left = `${screenX}px`;
+        textarea.style.top = `${screenY}px`;
+        textarea.style.width = `${screenW}px`;
+        textarea.style.height = `${screenH}px`;
+        textarea.style.fontSize = `${screenFontSize}px`;
+        textarea.style.fontFamily = 'Arial';
+        textarea.style.color = zone.color || '#000000';
+        textarea.style.background = 'rgba(255, 255, 255, 0.8)';
+        textarea.style.border = '1px dashed #2563EB';
+        textarea.style.padding = '0';
+        textarea.style.margin = '0';
+        textarea.style.outline = 'none';
+        textarea.style.resize = 'none';
+        textarea.style.textAlign = 'center'; // Match canvas rendering
+        textarea.style.lineHeight = '1.2';
+        textarea.style.zIndex = '1000';
+        
+        // Center vertically using flexbox-like padding or just simple calculation
+        // Textarea doesn't support vertical-align: middle easily without flex wrapper.
+        // For simplicity, we let user type. If we want perfect match, we need more complex CSS.
+        // Let's try to match the padding to center it if it's single line?
+        // Actually, standard textarea behavior (top-left) is usually expected for editing.
+        // But user asked for "centralized".
+        // Let's keep it simple: Textarea fills the box.
+        
+        document.body.appendChild(textarea);
+        textarea.focus();
+
+        // Save on blur
+        const save = () => {
+            const newText = textarea.value;
+            this.dataManager.updateZone({
+                ...zone,
+                name: newText
+            });
+            textarea.remove();
+            this.draw();
+        };
+
+        textarea.addEventListener('blur', save);
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent newline if just Enter
+                textarea.blur();
+            }
+        });
     }
 
     // --- Drag & Drop (Excel Mapping) ---
