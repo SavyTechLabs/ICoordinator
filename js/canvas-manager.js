@@ -298,6 +298,36 @@ class CanvasManager {
                     return;
                 }
 
+                if (this.resizeHandle === 'remove-start' || this.resizeHandle === 'remove-end') {
+                    // Remove point
+                    let newPoints = [...zone.points];
+                    if (this.resizeHandle === 'remove-start') {
+                        newPoints.shift();
+                    } else {
+                        newPoints.pop();
+                    }
+
+                    if (newPoints.length < 2) {
+                        // Delete zone if less than 2 points
+                        this.dataManager.deleteZone(zone.id);
+                        this.clearSelection();
+                    } else {
+                        // Recalculate bounds
+                        const x = Math.min(...newPoints.map(p => p.x));
+                        const y = Math.min(...newPoints.map(p => p.y));
+                        const width = Math.max(...newPoints.map(p => p.x)) - x;
+                        const height = Math.max(...newPoints.map(p => p.y)) - y;
+
+                        this.dataManager.updateZone({
+                            ...zone,
+                            points: newPoints,
+                            x, y, width, height
+                        });
+                    }
+                    this.draw();
+                    return;
+                }
+
                 if (this.resizeHandle === 'add-start' || this.resizeHandle === 'add-end') {
                     // Continue drawing from existing polyline
                     this.editingZoneId = zone.id;
@@ -404,7 +434,31 @@ class CanvasManager {
     }
 
     handleMouseMove(e) {
-        const pos = this.getMousePos(e);
+        let pos = this.getMousePos(e);
+
+        // Axis Locking with Shift
+        if (e.shiftKey && this.isDrawing) {
+            let anchor = null;
+            
+            if (this.activeTool === 'poly' || this.activeTool === 'cloud' || this.activeTool === 'measure-area' || this.activeTool === 'draw-poly') {
+                if (this.polyPoints.length > 0) {
+                    anchor = this.polyPoints[this.polyPoints.length - 1];
+                }
+            } else if (this.startPos) {
+                anchor = this.startPos;
+            }
+
+            if (anchor) {
+                const dx = Math.abs(pos.x - anchor.x);
+                const dy = Math.abs(pos.y - anchor.y);
+                if (dx > dy) {
+                    pos.y = anchor.y; // Snap to horizontal
+                } else {
+                    pos.x = anchor.x; // Snap to vertical
+                }
+            }
+        }
+
         this.currentPos = pos;
 
         if (this.isSizingSymbol && this.tempZone) {
@@ -828,15 +882,6 @@ class CanvasManager {
                 const start = zone.points[0];
                 const end = zone.points[zone.points.length - 1];
                 
-                // Offset the handles slightly away from the line to avoid overlap with vertex handle
-                // For now, just put them on the point but maybe larger or distinct?
-                // User asked for a "+" sign. Let's check a slightly larger area or specific offset?
-                // Let's put them exactly on the point but check them *before* vertices? 
-                // No, vertices are for moving. The "+" should probably be an extension.
-                // Let's put them 20px away from the endpoint in the direction of the line?
-                // Or just check if we are clicking the "+" icon which we will draw near the endpoint.
-                
-                // Let's define the "+" handle position.
                 // Start handle:
                 if (zone.points.length > 1) {
                     // Vector from p1 to p0
@@ -850,6 +895,12 @@ class CanvasManager {
                     const hy = p0.y + (dy/len) * offset;
                     
                     if (Math.abs(pos.x - hx) < handleSize && Math.abs(pos.y - hy) < handleSize) return 'add-start';
+
+                    // Remove handle (Minus sign)
+                    const offsetMinus = 35 / this.scale;
+                    const hxMinus = p0.x + (dx/len) * offsetMinus;
+                    const hyMinus = p0.y + (dy/len) * offsetMinus;
+                    if (Math.abs(pos.x - hxMinus) < handleSize && Math.abs(pos.y - hyMinus) < handleSize) return 'remove-start';
                 }
 
                 // End handle:
@@ -864,6 +915,12 @@ class CanvasManager {
                     const hy = pn.y + (dy/len) * offset;
                     
                     if (Math.abs(pos.x - hx) < handleSize && Math.abs(pos.y - hy) < handleSize) return 'add-end';
+
+                    // Remove handle (Minus sign)
+                    const offsetMinus = 35 / this.scale;
+                    const hxMinus = pn.x + (dx/len) * offsetMinus;
+                    const hyMinus = pn.y + (dy/len) * offsetMinus;
+                    if (Math.abs(pos.x - hxMinus) < handleSize && Math.abs(pos.y - hyMinus) < handleSize) return 'remove-end';
                 }
             }
 
@@ -1789,6 +1846,26 @@ class CanvasManager {
             const dy2 = pn.y - pn1.y;
             const len2 = Math.sqrt(dx2*dx2 + dy2*dy2);
             drawPlus(pn.x + (dx2/len2) * offset, pn.y + (dy2/len2) * offset);
+
+            // Draw "-" handles for draw-poly
+            const drawMinus = (x, y) => {
+                const size = 12 / this.scale;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size/2, 0, Math.PI * 2);
+                this.ctx.fillStyle = '#EF4444'; // Red
+                this.ctx.fill();
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(x - size/4, y);
+                this.ctx.lineTo(x + size/4, y);
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 2 / this.scale;
+                this.ctx.stroke();
+            };
+
+            const offsetMinus = 35 / this.scale;
+            drawMinus(p0.x + (dx/len) * offsetMinus, p0.y + (dy/len) * offsetMinus);
+            drawMinus(pn.x + (dx2/len2) * offsetMinus, pn.y + (dy2/len2) * offsetMinus);
         }
 
         // Rotation Handle for Symbols

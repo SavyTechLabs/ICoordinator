@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICoordinator - Byggplanering</title>
+    <title>Zone Planner - Byggplanering</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="css/style.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -23,7 +24,7 @@
         <!-- Left Sidebar: File Management -->
         <aside class="sidebar left-sidebar">
             <div class="logo-area">
-                <h1>ICoordinator</h1>
+                <h1>Zone Planner</h1>
             </div>
             
             <div class="sidebar-tabs">
@@ -248,6 +249,18 @@
                     <button id="btn-settings" class="btn btn-outline full-width">
                         <span class="material-icons">tune</span> <span data-i18n="projectSettings">Projektinställningar</span>
                     </button>
+
+                    <div class="divider"></div>
+                    
+                    <h3 data-i18n="about">Om Appen</h3>
+                    <p class="text-muted small" data-i18n="aboutText" style="margin-bottom: 1rem;">
+                        Zone Planner är ett verktyg för visuell byggplanering. Ladda upp ritningar, markera zoner och koppla dem till aktiviteter.
+                    </p>
+
+                    <h4 style="margin-top: 1rem; font-size: 0.9rem;" data-i18n="reportBugs">Rapportera Fel</h4>
+                    <p class="text-muted small" data-i18n="reportBugsText">
+                        Hittar du fel eller har förslag? Kontakta xxx@xxx.xx
+                    </p>
                 </div>
             </div>
         </aside>
@@ -293,7 +306,7 @@
         <!-- Right Sidebar: Metadata -->
         <aside class="sidebar right-sidebar">
             <div class="panel-header">
-                <h2 data-i18n="zoneProperties">Zon Egenskaper</h2>
+                <h2 data-i18n="properties">Egenskaper</h2>
             </div>
             
             <div id="metadata-content" class="metadata-content hidden">

@@ -26,6 +26,10 @@ const TRANSLATIONS = {
         importExcelHint: "Importera en Excel-fil för att se aktiviteter här.",
         settings: "Inställningar",
         projectSettings: "Projektinställningar",
+        about: "Om Appen",
+        aboutText: "Zone Planner är ett verktyg för visuell byggplanering. Ladda upp ritningar, markera zoner och koppla dem till aktiviteter.",
+        reportBugs: "Rapportera Fel",
+        reportBugsText: "Hittar du fel eller har förslag? Kontakta xxx@xxx.xx",
         
         // Canvas
         uploadLayoutPrompt: "Ladda upp en layout för att börja planera",
@@ -34,7 +38,7 @@ const TRANSLATIONS = {
         zoomFit: "Zooma till allt",
         
         // Metadata
-        zoneProperties: "Zon Egenskaper",
+        properties: "Egenskaper",
         id: "ID",
         nameZone: "Namn / Zon",
         nameZonePlaceholder: "Namnge zonen...",
@@ -129,6 +133,10 @@ const TRANSLATIONS = {
         importExcelHint: "Import an Excel file to see activities here.",
         settings: "Settings",
         projectSettings: "Project Settings",
+        about: "About",
+        aboutText: "Zone Planner is a tool for visual construction planning. Upload drawings, mark zones, and connect them to activities.",
+        reportBugs: "Report Bugs",
+        reportBugsText: "Found a bug or have suggestions? Contact xxx@xxx.xx",
         
         // Canvas
         uploadLayoutPrompt: "Upload a layout to start planning",
@@ -137,7 +145,7 @@ const TRANSLATIONS = {
         zoomFit: "Zoom to fit",
         
         // Metadata
-        zoneProperties: "Zone Properties",
+        properties: "Properties",
         id: "ID",
         nameZone: "Name / Zone",
         nameZonePlaceholder: "Name the zone...",
