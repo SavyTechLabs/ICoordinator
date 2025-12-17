@@ -1,0 +1,28 @@
+/* Date Range Display */
+.date-range-display {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    pointer-events: none; /* Allow clicking through if needed, but usually display is fine */
+    backdrop-filter: blur(4px);
+}
+
+.date-range-display.hidden {
+    display: none;
+}
+
+.date-range-display .material-icons {
+    color: var(--primary-color);
+}

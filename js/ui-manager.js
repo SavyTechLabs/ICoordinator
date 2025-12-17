@@ -43,7 +43,10 @@ class UIManager {
             metaStatus: document.getElementById('meta-status'),
             metaColor: document.getElementById('meta-color'),
             metaBorderColor: document.getElementById('meta-border-color'),
+            metaPattern: document.getElementById('meta-pattern'),
             metaLineType: document.getElementById('meta-line-type'),
+            metaTextColor: document.getElementById('meta-text-color'),
+            metaAutoTextColor: document.getElementById('meta-auto-text-color'),
             metaOpacity: document.getElementById('meta-opacity'),
             opacityVal: document.getElementById('opacity-val'),
             metaNoFill: document.getElementById('meta-no-fill'),
@@ -51,7 +54,8 @@ class UIManager {
             metaComments: document.getElementById('meta-comments'),
             
             // New Metadata Fields
-            metaDate: document.getElementById('meta-date'),
+            metaStartDate: document.getElementById('meta-start-date'),
+            metaEndDate: document.getElementById('meta-end-date'),
             metaDateDisplay: document.getElementById('meta-date-display'),
             metaContact: document.getElementById('meta-contact'),
             metaFreetext: document.getElementById('meta-freetext'),
@@ -257,7 +261,7 @@ class UIManager {
         this.elements.zoomFit.addEventListener('click', () => this.canvasManager.zoomToFit());
 
         // Metadata Inputs (Auto-save)
-        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaBorderColor', 'metaLineType', 'metaComments', 'metaDate', 'metaContact', 'metaFreetext', 'metaOpacity', 'metaNoFill', 'metaHidden', 'metaFontSize'];
+        const inputs = ['metaName', 'metaDiscipline', 'metaStatus', 'metaColor', 'metaBorderColor', 'metaPattern', 'metaLineType', 'metaComments', 'metaStartDate', 'metaEndDate', 'metaContact', 'metaFreetext', 'metaOpacity', 'metaNoFill', 'metaHidden', 'metaFontSize', 'metaTextColor', 'metaAutoTextColor'];
         inputs.forEach(id => {
             const el = this.elements[id];
             if (el) {
@@ -361,7 +365,7 @@ class UIManager {
         // Layout Tabs
         if (this.elements.btnAddLayout) {
             this.elements.btnAddLayout.addEventListener('click', () => {
-                const name = prompt("Namn på ny layout:", `Layout ${this.dataManager.getState().layouts.length + 1}`);
+                const name = prompt(this.t('nameNewLayout'), `Layout ${this.dataManager.getState().layouts.length + 1}`);
                 if (name) {
                     this.dataManager.addLayout(name);
                 }
@@ -523,12 +527,29 @@ class UIManager {
             this.elements.metaStatus.value = zone.status || 'planned';
             this.elements.metaColor.value = zone.color || '#2563EB';
             this.elements.metaBorderColor.value = zone.borderColor || zone.color || '#2563EB';
+            this.elements.metaPattern.value = zone.pattern || 'none';
             this.elements.metaLineType.value = zone.lineType || 'solid';
             this.elements.metaComments.value = zone.comments || '';
             
             // New Fields
-            this.elements.metaDate.value = zone.date || '';
-            this.elements.metaDateDisplay.value = getWeekDayString(zone.date);
+            this.elements.metaStartDate.value = zone.startDate || '';
+            this.elements.metaEndDate.value = zone.endDate || '';
+            
+            // Calculate display string (Week-Day range)
+            let dateDisplay = '';
+            if (zone.startDate && zone.endDate) {
+                const startStr = getWeekDayString(zone.startDate);
+                const endStr = getWeekDayString(zone.endDate);
+                dateDisplay = `${startStr} - ${endStr}`;
+            } else if (zone.startDate) {
+                dateDisplay = getWeekDayString(zone.startDate);
+            } else if (zone.date) {
+                // Fallback for legacy single date
+                this.elements.metaStartDate.value = zone.date;
+                dateDisplay = getWeekDayString(zone.date);
+            }
+            this.elements.metaDateDisplay.value = dateDisplay;
+
             this.elements.metaContact.value = zone.contact || '';
             this.elements.metaFreetext.value = zone.freetext || '';
             
@@ -537,6 +558,13 @@ class UIManager {
             this.elements.opacityVal.textContent = Math.round((zone.opacity !== undefined ? zone.opacity : 0.5) * 100) + '%';
             this.elements.metaNoFill.checked = !!zone.noFill;
             this.elements.metaHidden.checked = !!zone.hidden;
+
+            // Text Color
+            const textColor = zone.textColor || '#000000';
+            const autoTextColor = zone.autoTextColor !== undefined ? zone.autoTextColor : true;
+            this.elements.metaTextColor.value = textColor;
+            this.elements.metaAutoTextColor.checked = autoTextColor;
+            this.elements.metaTextColor.disabled = autoTextColor;
 
             // Handle Symbol/Cloud vs Zone UI
             const isSymbol = zone.type === 'symbol' || zone.type === 'cloud';
@@ -553,7 +581,7 @@ class UIManager {
 
             // Fields to hide for symbols/text/measurements
             const zoneOnlyFields = [
-                this.elements.metaDate.parentElement,
+                this.elements.metaStartDate.parentElement.parentElement, // Parent of the flex container
                 this.elements.metaContact.parentElement,
                 this.elements.connectedActivitySection,
                 this.elements.metaDiscipline.parentElement,
@@ -635,10 +663,11 @@ class UIManager {
 
             this.elements.metaColor.value = getCommonValue('color', '#000000');
             this.elements.metaBorderColor.value = getCommonValue('borderColor', '#000000');
+            this.elements.metaPattern.value = getCommonValue('pattern', 'none');
             this.elements.metaComments.value = ''; 
 
             // Hide specific fields
-            this.elements.metaDate.parentElement.style.display = 'none';
+            this.elements.metaStartDate.parentElement.parentElement.style.display = 'none';
             this.elements.metaContact.parentElement.style.display = 'none';
             this.elements.connectedActivitySection.classList.add('hidden');
             
@@ -650,6 +679,12 @@ class UIManager {
             this.elements.metaNoFill.checked = getCommonValue('noFill', false);
             this.elements.metaHidden.checked = getCommonValue('hidden', false);
             
+            // Text Color Multi
+            this.elements.metaTextColor.value = getCommonValue('textColor', '#000000');
+            const commonAuto = getCommonValue('autoTextColor', true);
+            this.elements.metaAutoTextColor.checked = commonAuto;
+            this.elements.metaTextColor.disabled = commonAuto;
+
             // Clear custom fields for now
             this.elements.customFieldsContainer.innerHTML = '';
         }
@@ -682,15 +717,30 @@ class UIManager {
                 case 'metaStatus': updates.status = value; break;
                 case 'metaColor': updates.color = value; break;
                 case 'metaBorderColor': updates.borderColor = value; break;
+                case 'metaPattern': updates.pattern = value; break;
                 case 'metaComments': 
                     if (zoneIds.length === 1) updates.comments = value; 
                     break;
                 
                 // New Fields
-                case 'metaDate': 
+                case 'metaStartDate': 
                     if (zoneIds.length === 1) {
-                        updates.date = value; 
-                        this.elements.metaDateDisplay.value = getWeekDayString(value);
+                        updates.startDate = value;
+                        // Update display
+                        const end = zone.endDate || '';
+                        const startStr = getWeekDayString(value);
+                        const endStr = end ? getWeekDayString(end) : '';
+                        this.elements.metaDateDisplay.value = end ? `${startStr} - ${endStr}` : startStr;
+                    }
+                    break;
+                case 'metaEndDate': 
+                    if (zoneIds.length === 1) {
+                        updates.endDate = value;
+                        // Update display
+                        const start = zone.startDate || '';
+                        const startStr = start ? getWeekDayString(start) : '';
+                        const endStr = getWeekDayString(value);
+                        this.elements.metaDateDisplay.value = start ? `${startStr} - ${endStr}` : endStr;
                     }
                     break;
                 case 'metaContact': 
@@ -698,6 +748,13 @@ class UIManager {
                     break;
                 case 'metaFreetext': 
                     if (zoneIds.length === 1) updates.freetext = value; 
+                    break;
+                case 'metaTextColor':
+                    updates.textColor = value;
+                    break;
+                case 'metaAutoTextColor':
+                    updates.autoTextColor = value;
+                    this.elements.metaTextColor.disabled = value;
                     break;
                 case 'metaFontSize':
                     const newSize = parseInt(value);
@@ -775,7 +832,7 @@ class UIManager {
 
         // Check if XLSX is available
         if (typeof XLSX === 'undefined') {
-            alert("Excel-biblioteket (SheetJS) kunde inte laddas. Kontrollera din internetanslutning.");
+            alert(this.t('alertSheetJS'));
             return;
         }
 
@@ -827,7 +884,7 @@ class UIManager {
         
         if (!this.tempExcelData) {
             console.error("No Excel data to import");
-            alert("Ingen data att importera. Försök ladda upp filen igen.");
+            alert(this.t('alertNoData'));
             this.elements.mappingModal.classList.add('hidden');
             return;
         }
@@ -868,7 +925,7 @@ class UIManager {
             alert(this.t('alertImportSuccess').replace('{count}', processedData.length));
         } catch (e) {
             console.error("Import error:", e);
-            alert("Ett fel uppstod vid importen: " + e.message);
+            alert(this.t('alertImportError') + e.message);
         }
     }
 
@@ -1169,7 +1226,7 @@ class UIManager {
             nameSpan.textContent = layout.name;
             nameSpan.ondblclick = (e) => {
                 e.stopPropagation();
-                const newName = prompt("Byt namn på layout:", layout.name);
+                const newName = prompt(this.t('renameLayout'), layout.name);
                 if (newName && newName !== layout.name) {
                     this.dataManager.renameLayout(layout.id, newName);
                 }
@@ -1182,10 +1239,10 @@ class UIManager {
                 const closeBtn = document.createElement('span');
                 closeBtn.className = 'close-tab';
                 closeBtn.innerHTML = '&times;';
-                closeBtn.title = "Ta bort layout";
+                closeBtn.title = this.t('deleteLayoutTitle');
                 closeBtn.onclick = (e) => {
                     e.stopPropagation();
-                    if (confirm(`Ta bort layout "${layout.name}"?`)) {
+                    if (confirm(this.t('confirmDeleteLayout', {name: layout.name}))) {
                         this.dataManager.deleteLayout(layout.id);
                     }
                 };
@@ -1223,8 +1280,27 @@ class UIManager {
             }
             
             newCustomData._connectedActivities = connectedActivities;
+
+            // Recalculate dates if activities remain
+            let updates = { customData: newCustomData };
             
-            this.dataManager.updateZone({ ...zone, customData: newCustomData });
+            if (connectedActivities.length > 0) {
+                let minStart = null;
+                let maxEnd = null;
+                
+                connectedActivities.forEach(a => {
+                    if (a.start) {
+                        if (!minStart || a.start < minStart) minStart = a.start;
+                    }
+                    if (a.end) {
+                        if (!maxEnd || a.end > maxEnd) maxEnd = a.end;
+                    }
+                });
+                updates.startDate = minStart;
+                updates.endDate = maxEnd;
+            }
+            
+            this.dataManager.updateZone({ ...zone, ...updates });
             this.selectZone(zoneId); // Refresh UI
         }
     }
@@ -1386,7 +1462,7 @@ class UIManager {
 
             // Label
             const span = document.createElement('span');
-            span.textContent = symbol.name;
+            span.textContent = this.t(symbol.name);
             div.appendChild(span);
 
             this.elements.symbolsGrid.appendChild(div);

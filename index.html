@@ -6,6 +6,7 @@
     <title>Zone Planner - Byggplanering</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/date-display.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -163,7 +164,7 @@
                     
                     <div class="file-input-group">
                         <label for="symbol-upload" class="btn btn-outline full-width">
-                            <span class="material-icons">add_photo_alternate</span> Ladda upp egen
+                            <span class="material-icons">add_photo_alternate</span> <span data-i18n="uploadCustom">Ladda upp egen</span>
                         </label>
                         <input type="file" id="symbol-upload" accept="image/*,.svg" hidden>
                     </div>
@@ -185,14 +186,14 @@
                     <h2>Filter</h2>
                     
                     <div class="filter-section">
-                        <label>Sök (Namn/ID/Text)</label>
-                        <input type="text" id="filter-text" class="full-width" placeholder="Sök...">
+                        <label data-i18n="searchLabel">Sök (Namn/ID/Text)</label>
+                        <input type="text" id="filter-text" class="full-width" placeholder="Sök..." data-i18n-placeholder="searchPlaceholder">
                     </div>
 
                     <div class="divider"></div>
 
                     <div class="filter-section">
-                        <label>Disciplin</label>
+                        <label data-i18n="discipline">Disciplin</label>
                         <div id="filter-disciplines-list" class="checkbox-list">
                             <!-- Populated dynamically -->
                         </div>
@@ -201,7 +202,7 @@
                     <div class="divider"></div>
 
                     <div class="filter-section">
-                        <label>Status</label>
+                        <label data-i18n="status">Status</label>
                         <div id="filter-statuses-list" class="checkbox-list">
                             <!-- Populated dynamically -->
                         </div>
@@ -210,14 +211,14 @@
                     <div class="divider"></div>
 
                     <div class="filter-section">
-                        <label>Datumintervall</label>
+                        <label data-i18n="dateRange">Datumintervall</label>
                         <div style="display: flex; gap: 5px; flex-direction: column;">
                             <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <span style="font-size: 0.8rem;">Från:</span>
+                                <span style="font-size: 0.8rem;" data-i18n="from">Från:</span>
                                 <input type="date" id="filter-date-start" style="width: 120px;">
                             </div>
                             <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <span style="font-size: 0.8rem;">Till:</span>
+                                <span style="font-size: 0.8rem;" data-i18n="to">Till:</span>
                                 <input type="date" id="filter-date-end" style="width: 120px;">
                             </div>
                         </div>
@@ -226,7 +227,7 @@
                     <div class="divider"></div>
 
                     <div class="filter-section">
-                        <label>Vecka (ex. 42 eller 42-45)</label>
+                        <label data-i18n="weekLabel">Vecka (ex. 42 eller 42-45)</label>
                         <input type="text" id="filter-week" class="full-width" placeholder="v.nr">
                     </div>
 
@@ -234,13 +235,13 @@
 
                     <div class="filter-section">
                         <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; cursor: pointer;">
-                            <input type="checkbox" id="filter-show-hidden"> Visa dolda objekt
+                            <input type="checkbox" id="filter-show-hidden"> <span data-i18n="showHidden">Visa dolda objekt</span>
                         </label>
                     </div>
 
                     <div class="divider"></div>
 
-                    <button id="btn-reset-filters" class="btn btn-secondary full-width">Återställ Filter</button>
+                    <button id="btn-reset-filters" class="btn btn-secondary full-width" data-i18n="resetFilters">Återställ Filter</button>
                 </div>
 
                 <!-- Settings Tab -->
@@ -256,6 +257,12 @@
                     <p class="text-muted small" data-i18n="aboutText" style="margin-bottom: 1rem;">
                         Zone Planner är ett verktyg för visuell byggplanering. Ladda upp ritningar, markera zoner och koppla dem till aktiviteter.
                     </p>
+
+                    <h4 style="margin-top: 1rem; font-size: 0.9rem;" data-i18n="legalInfo">Juridisk Information</h4>
+                    <div class="legal-text" style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+                        <p><strong data-i18n="disclaimerTitle">Ansvarsfriskrivning</strong>: <span data-i18n="disclaimerText">Denna programvara tillhandahålls "i befintligt skick" utan några garantier. Användning sker på egen risk. Utvecklaren ansvarar inte för eventuella fel i planering eller dataförlust.</span></p>
+                        <p style="margin-top: 4px;" data-i18n="copyright">&copy; 2025 Zone Planner. Alla rättigheter förbehållna.</p>
+                    </div>
 
                     <h4 style="margin-top: 1rem; font-size: 0.9rem;" data-i18n="reportBugs">Rapportera Fel</h4>
                     <p class="text-muted small" data-i18n="reportBugsText">
@@ -292,6 +299,12 @@
                     <div id="legend-items" class="legend-items">
                         <!-- Items injected by JS -->
                     </div>
+                </div>
+
+                <!-- Date Range Display -->
+                <div id="date-range-display" class="date-range-display hidden">
+                    <span class="material-icons" style="font-size: 16px;">date_range</span>
+                    <span id="date-range-text">v.1-1 - v.52-7</span>
                 </div>
             </div>
             <div class="canvas-controls">
@@ -334,20 +347,27 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Datum</label>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="date" id="meta-date" class="full-width">
-                        <input type="text" id="meta-date-display" readonly style="width: 80px; text-align: center; background: #f1f5f9;" title="Vecka-Dag">
+                    <label data-i18n="date">Datum</label>
+                    <div style="display: flex; gap: 5px; flex-direction: column;">
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <label style="font-size: 0.8rem; width: 40px;" data-i18n="start">Start:</label>
+                            <input type="date" id="meta-start-date" class="full-width">
+                        </div>
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <label style="font-size: 0.8rem; width: 40px;" data-i18n="end">Slut:</label>
+                            <input type="date" id="meta-end-date" class="full-width">
+                        </div>
+                        <input type="text" id="meta-date-display" readonly style="width: 100%; text-align: center; background: #f1f5f9; margin-top: 5px;" title="Vecka-Dag">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Kontaktperson</label>
+                    <label data-i18n="contactPerson">Kontaktperson</label>
                     <input type="text" id="meta-contact">
                 </div>
 
                 <div class="form-group">
-                    <label>Fritext</label>
+                    <label data-i18n="freeText">Fritext</label>
                     <input type="text" id="meta-freetext">
                 </div>
 
@@ -359,38 +379,59 @@
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="color">Utseende</label>
+                    <label data-i18n="appearance">Utseende</label>
                     
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-                        <label style="font-size: 0.8rem; width: 70px;">Fyllnad:</label>
+                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="fill">Fyllnad:</label>
                         <input type="color" id="meta-color" class="color-input">
                         <input type="range" id="meta-opacity" min="0" max="1" step="0.1" style="flex: 1;">
                         <span id="opacity-val" style="font-size: 0.8rem; width: 30px;">50%</span>
                     </div>
 
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.8rem; width: 70px;">Kantlinje:</label>
+                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="border">Kantlinje:</label>
                         <input type="color" id="meta-border-color" class="color-input">
                         <div style="flex: 1;"></div> <!-- Spacer to align with above -->
                     </div>
 
                     <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <label style="font-size: 0.8rem; width: 70px;">Linjetyp:</label>
-                        <select id="meta-line-type" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
-                            <option value="solid">Heldragen</option>
-                            <option value="dashed">Streckad</option>
-                            <option value="dotted">Prickad</option>
+                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="pattern">Mönster:</label>
+                        <select id="meta-pattern" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
+                            <option value="none" data-i18n="patternNone">Inget (Solid)</option>
+                            <option value="diagonal-right" data-i18n="patternDiagonalRight">Diagonal Höger (///)</option>
+                            <option value="diagonal-left" data-i18n="patternDiagonalLeft">Diagonal Vänster (\\\)</option>
+                            <option value="cross" data-i18n="patternCross">Kryss (X)</option>
+                            <option value="grid" data-i18n="patternGrid">Rutnät (+)</option>
+                            <option value="horizontal" data-i18n="patternHorizontal">Horisontell (-)</option>
+                            <option value="vertical" data-i18n="patternVertical">Vertikal (|)</option>
                         </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="lineType">Linjetyp:</label>
+                        <select id="meta-line-type" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
+                            <option value="solid" data-i18n="lineSolid">Heldragen</option>
+                            <option value="dashed" data-i18n="lineDashed">Streckad</option>
+                            <option value="dotted" data-i18n="lineDotted">Prickad</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="textColor">Textfärg:</label>
+                        <input type="color" id="meta-text-color" class="color-input" disabled>
+                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.8rem; margin-left: 10px;">
+                            <input type="checkbox" id="meta-auto-text-color" checked> <span data-i18n="auto">Auto</span>
+                        </label>
                     </div>
 
                     <div style="margin-top: 8px;">
                         <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="meta-no-fill"> Endast ram (ingen fyllning)
+                            <input type="checkbox" id="meta-no-fill"> <span data-i18n="borderOnly">Endast ram (ingen fyllning)</span>
                         </label>
                     </div>
                     <div style="margin-top: 4px;">
                         <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
-                            <input type="checkbox" id="meta-hidden"> Dölj objekt
+                            <input type="checkbox" id="meta-hidden"> <span data-i18n="hideObject">Dölj objekt</span>
                         </label>
                     </div>
                 </div>
@@ -499,6 +540,32 @@
                 <div class="divider"></div>
                 <button id="btn-confirm-import" class="btn btn-primary full-width" data-i18n="import">Importera</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu hidden">
+        <div class="menu-item" id="ctx-bring-front">
+            <span class="material-icons">flip_to_front</span>
+            <span data-i18n="bringToFront">Bring to Front</span>
+        </div>
+        <div class="menu-item" id="ctx-send-back">
+            <span class="material-icons">flip_to_back</span>
+            <span data-i18n="sendToBack">Send to Back</span>
+        </div>
+        <div class="divider"></div>
+        <div class="menu-item" id="ctx-copy">
+            <span class="material-icons">content_copy</span>
+            <span data-i18n="copy">Kopiera</span>
+        </div>
+        <div class="menu-item" id="ctx-paste">
+            <span class="material-icons">content_paste</span>
+            <span data-i18n="paste">Klistra in</span>
+        </div>
+        <div class="divider"></div>
+        <div class="menu-item" id="ctx-delete" style="color: var(--danger-color);">
+            <span class="material-icons" style="color: var(--danger-color);">delete</span>
+            <span data-i18n="delete">Ta bort</span>
         </div>
     </div>
 

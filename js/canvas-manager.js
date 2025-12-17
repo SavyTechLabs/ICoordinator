@@ -33,6 +33,9 @@ class CanvasManager {
         this.backgroundImage = null;
         this.lastLoadedBg = null; // Track loaded bg to avoid loops
         this.lastLayoutId = null;
+        
+        this.clipboard = []; // For copy/paste
+        this.contextMenu = document.getElementById('context-menu');
 
         // Debounced save function for view state
         this.saveViewStateDebounced = debounce(() => {
@@ -125,7 +128,16 @@ class CanvasManager {
         this.canvas.addEventListener('dragover', (e) => this.handleDragOver(e));
         this.canvas.addEventListener('drop', (e) => this.handleDrop(e));
         this.canvas.addEventListener('dblclick', (e) => this.handleDoubleClick(e));
+        this.canvas.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
         window.addEventListener('keydown', (e) => this.handleKeyDown(e));
+
+        // Context Menu Listeners
+        document.addEventListener('click', () => this.hideContextMenu());
+        document.getElementById('ctx-bring-front').addEventListener('click', () => this.bringToFront());
+        document.getElementById('ctx-send-back').addEventListener('click', () => this.sendToBack());
+        document.getElementById('ctx-copy').addEventListener('click', () => this.copySelected());
+        document.getElementById('ctx-paste').addEventListener('click', () => this.pasteFromClipboard());
+        document.getElementById('ctx-delete').addEventListener('click', () => this.deleteSelectedZones());
     }
 
     handleKeyDown(e) {
@@ -147,12 +159,189 @@ class CanvasManager {
                     this.finishPolygon();
                 }
             }
-        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        } else if (e.key === 'Delete') {
             // Only delete if not editing text (though text editing usually captures focus)
             if (this.selectedZoneIds.size > 0 && !this.isDrawing) {
                 this.deleteSelectedZones();
             }
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            this.copySelected();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            this.pasteFromClipboard();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            this.dataManager.undo();
+            this.draw();
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+            e.preventDefault();
+            this.dataManager.redo();
+            this.draw();
         }
+    }
+
+    copySelected() {
+        if (this.selectedZoneIds.size > 0) {
+            this.clipboard = [];
+            this.selectedZoneIds.forEach(id => {
+                const zone = this.dataManager.getZone(id);
+                if (zone) {
+                    // Deep clone to avoid reference issues
+                    this.clipboard.push(JSON.parse(JSON.stringify(zone)));
+                }
+            });
+        }
+    }
+
+    pasteFromClipboard() {
+        if (this.clipboard && this.clipboard.length > 0) {
+            this.clearSelection();
+            
+            this.clipboard.forEach(item => {
+                const newZone = JSON.parse(JSON.stringify(item));
+                newZone.id = generateUUID();
+                
+                // Offset position
+                const offset = 20 / this.scale;
+                
+                if (newZone.points) {
+                    // Polygon/Cloud
+                    newZone.points = newZone.points.map(p => ({ x: p.x + offset, y: p.y + offset }));
+                    // Recalculate bounds
+                    if (newZone.x !== undefined) newZone.x += offset;
+                    if (newZone.y !== undefined) newZone.y += offset;
+                } else {
+                    newZone.x += offset;
+                    newZone.y += offset;
+                    if (newZone.x2 !== undefined) newZone.x2 += offset;
+                    if (newZone.y2 !== undefined) newZone.y2 += offset;
+                }
+                
+                this.dataManager.addZone(newZone);
+                this.addToSelection(newZone.id);
+            });
+            
+            this.draw();
+        }
+    }
+
+    handleContextMenu(e) {
+        e.preventDefault();
+        
+        const pos = this.getMousePos(e);
+        const zone = this.getZoneAt(pos);
+        
+        if (zone) {
+            if (!this.selectedZoneIds.has(zone.id)) {
+                this.clearSelection();
+                this.selectZone(zone.id);
+            }
+        } else {
+            this.clearSelection();
+        }
+
+        this.showContextMenu(e.clientX, e.clientY);
+    }
+
+    showContextMenu(x, y) {
+        if (!this.contextMenu) return;
+
+        const hasSelection = this.selectedZoneIds.size > 0;
+        const hasClipboard = this.clipboard.length > 0;
+
+        const bringFrontBtn = document.getElementById('ctx-bring-front');
+        const sendBackBtn = document.getElementById('ctx-send-back');
+        const copyBtn = document.getElementById('ctx-copy');
+        const pasteBtn = document.getElementById('ctx-paste');
+        const deleteBtn = document.getElementById('ctx-delete');
+
+        if (hasSelection) {
+            bringFrontBtn.classList.remove('disabled');
+            sendBackBtn.classList.remove('disabled');
+            copyBtn.classList.remove('disabled');
+            deleteBtn.classList.remove('disabled');
+        } else {
+            bringFrontBtn.classList.add('disabled');
+            sendBackBtn.classList.add('disabled');
+            copyBtn.classList.add('disabled');
+            deleteBtn.classList.add('disabled');
+        }
+
+        if (hasClipboard) {
+            pasteBtn.classList.remove('disabled');
+        } else {
+            pasteBtn.classList.add('disabled');
+        }
+
+        // Adjust position if close to edge
+        const menuWidth = 180;
+        const menuHeight = 200; // Increased height for new items
+        
+        let finalX = x;
+        let finalY = y;
+
+        if (x + menuWidth > window.innerWidth) {
+            finalX = x - menuWidth;
+        }
+        
+        if (y + menuHeight > window.innerHeight) {
+            finalY = y - menuHeight;
+        }
+
+        this.contextMenu.style.left = `${finalX}px`;
+        this.contextMenu.style.top = `${finalY}px`;
+        this.contextMenu.classList.remove('hidden');
+    }
+
+    hideContextMenu() {
+        if (this.contextMenu) {
+            this.contextMenu.classList.add('hidden');
+        }
+    }
+
+    bringToFront() {
+        if (this.selectedZoneIds.size === 0) return;
+        
+        this.dataManager.saveState();
+
+        const layout = this.dataManager.getActiveLayout();
+        const zones = layout.zones;
+        const selected = [];
+        const others = [];
+        
+        zones.forEach(z => {
+            if (this.selectedZoneIds.has(z.id)) {
+                selected.push(z);
+            } else {
+                others.push(z);
+            }
+        });
+        
+        const newOrder = [...others, ...selected];
+        this.dataManager.updateActiveLayout({ zones: newOrder });
+        this.draw();
+    }
+
+    sendToBack() {
+        if (this.selectedZoneIds.size === 0) return;
+        
+        this.dataManager.saveState();
+
+        const layout = this.dataManager.getActiveLayout();
+        const zones = layout.zones;
+        const selected = [];
+        const others = [];
+        
+        zones.forEach(z => {
+            if (this.selectedZoneIds.has(z.id)) {
+                selected.push(z);
+            } else {
+                others.push(z);
+            }
+        });
+        
+        const newOrder = [...selected, ...others];
+        this.dataManager.updateActiveLayout({ zones: newOrder });
+        this.draw();
     }
 
     handleDoubleClick(e) {
@@ -295,6 +484,7 @@ class CanvasManager {
                 
                 if (this.resizeHandle === 'rotate') {
                     this.isRotating = true;
+                    this.dataManager.saveState();
                     return;
                 }
 
@@ -359,6 +549,7 @@ class CanvasManager {
                 
                 if (this.resizeHandle !== null) {
                     this.isResizing = true;
+                    this.dataManager.saveState();
                     return;
                 }
             }
@@ -382,6 +573,7 @@ class CanvasManager {
                     }
                 }
                 this.isDragging = true;
+                this.dataManager.saveState();
             } else {
                 if (!e.shiftKey) {
                     this.clearSelection();
@@ -515,7 +707,7 @@ class CanvasManager {
             this.dataManager.updateZone({
                 ...zone,
                 rotation: rotation
-            });
+            }, false);
         } else if (this.isDragging && this.selectedZoneIds.size > 0) {
             const dx = pos.x - this.startPos.x;
             const dy = pos.y - this.startPos.y;
@@ -536,7 +728,7 @@ class CanvasManager {
                         y: zone.y + dy
                     };
                 }
-                this.dataManager.updateZone(updatedZone);
+                this.dataManager.updateZone(updatedZone, false);
             });
             
             this.startPos = pos; // Reset start pos for continuous drag
@@ -938,9 +1130,9 @@ class CanvasManager {
     resizeZone(zone, pos) {
         if (zone.type === 'measure-length' || zone.type === 'calibration-line' || zone.type === 'arrow' || zone.type === 'line') {
             if (this.resizeHandle === 'start') {
-                this.dataManager.updateZone({ ...zone, x: pos.x, y: pos.y });
+                this.dataManager.updateZone({ ...zone, x: pos.x, y: pos.y }, false);
             } else if (this.resizeHandle === 'end') {
-                this.dataManager.updateZone({ ...zone, x2: pos.x, y2: pos.y });
+                this.dataManager.updateZone({ ...zone, x2: pos.x, y2: pos.y }, false);
             }
             return;
         }
@@ -972,7 +1164,7 @@ class CanvasManager {
                     height: newHeight,
                     width: metrics.width,
                     customData: { ...zone.customData, fontSize: newFontSize }
-                });
+                }, false);
                 
                 // Update UI if selected
                 if (this.selectedZoneId === zone.id) {
@@ -1000,7 +1192,7 @@ class CanvasManager {
                     ...zone,
                     points: newPoints,
                     x, y, width, height
-                });
+                }, false);
             }
         } else {
             let newX = zone.x;
@@ -1033,7 +1225,7 @@ class CanvasManager {
                     y: newY,
                     width: newW,
                     height: newH
-                });
+                }, false);
             }
         }
     }
@@ -1302,6 +1494,71 @@ class CanvasManager {
         }
     }
 
+    createHatchPattern(type, color, opacity) {
+        // Create a small canvas for the pattern
+        const patternCanvas = document.createElement('canvas');
+        const size = 20; // Pattern tile size
+        patternCanvas.width = size;
+        patternCanvas.height = size;
+        const pCtx = patternCanvas.getContext('2d');
+
+        // Set style
+        pCtx.strokeStyle = hexToRgba(color, opacity);
+        pCtx.lineWidth = 2;
+        pCtx.lineCap = 'square';
+
+        switch (type) {
+            case 'diagonal-right': // ///
+                pCtx.beginPath();
+                pCtx.moveTo(0, size);
+                pCtx.lineTo(size, 0);
+                // Add extra lines for seamless tiling if needed, but simple diagonal usually needs careful tiling
+                // Better: Draw multiple lines to cover corners
+                pCtx.moveTo(-size/2, size/2);
+                pCtx.lineTo(size/2, -size/2);
+                pCtx.moveTo(size/2, size + size/2);
+                pCtx.lineTo(size + size/2, size/2);
+                pCtx.stroke();
+                break;
+            case 'diagonal-left': // \\\
+                pCtx.beginPath();
+                pCtx.moveTo(0, 0);
+                pCtx.lineTo(size, size);
+                pCtx.stroke();
+                break;
+            case 'cross': // X
+                pCtx.beginPath();
+                pCtx.moveTo(0, 0);
+                pCtx.lineTo(size, size);
+                pCtx.moveTo(size, 0);
+                pCtx.lineTo(0, size);
+                pCtx.stroke();
+                break;
+            case 'grid': // +
+                pCtx.beginPath();
+                pCtx.moveTo(size/2, 0);
+                pCtx.lineTo(size/2, size);
+                pCtx.moveTo(0, size/2);
+                pCtx.lineTo(size, size/2);
+                pCtx.stroke();
+                break;
+            case 'horizontal': // -
+                pCtx.beginPath();
+                pCtx.moveTo(0, size/2);
+                pCtx.lineTo(size, size/2);
+                pCtx.stroke();
+                break;
+            case 'vertical': // |
+                pCtx.beginPath();
+                pCtx.moveTo(size/2, 0);
+                pCtx.lineTo(size/2, size);
+                pCtx.stroke();
+                break;
+        }
+
+        return this.ctx.createPattern(patternCanvas, 'repeat');
+    }
+
     drawZone(zone, isExport = false) {
         const isSelected = this.selectedZoneIds.has(zone.id);
         const state = this.dataManager.getState();
@@ -1359,7 +1616,26 @@ class CanvasManager {
             this.ctx.globalAlpha = 1.0;
         }
 
-        this.ctx.fillStyle = hexToRgba(color, zone.opacity !== undefined ? zone.opacity : 0.5);
+        // Prepare Fill Style (Solid or Pattern)
+        let fillStyle;
+        const opacity = zone.opacity !== undefined ? zone.opacity : 0.5;
+        
+        if (zone.pattern && zone.pattern !== 'none') {
+            // Create pattern
+            // Note: Patterns are affected by transformation matrix. 
+            // If we zoom/pan, the pattern stays fixed to screen unless we transform it?
+            // Actually, createPattern uses the canvas coordinate system.
+            // Since we scale/translate the context, the pattern should scale/translate with it automatically?
+            // Let's test. Usually patterns tile in world space if context is transformed.
+            
+            // However, createPattern repeats the image.
+            // We need to ensure the pattern color matches the zone color.
+            fillStyle = this.createHatchPattern(zone.pattern, color, opacity);
+        } else {
+            fillStyle = hexToRgba(color, opacity);
+        }
+
+        this.ctx.fillStyle = fillStyle;
         this.ctx.strokeStyle = isSelected ? '#F59E0B' : borderColor;
         this.ctx.lineWidth = (isSelected ? 3 : 1) / this.scale;
 
@@ -1722,26 +1998,79 @@ class CanvasManager {
 
         // Draw Label (Skip for symbols unless they have a name override?)
         if (zone.type !== 'symbol' && zone.type !== 'cloud' && zone.type !== 'measure-area' && zone.type !== 'measure-length' && zone.type !== 'calibration-line' && zone.type !== 'text' && zone.type !== 'arrow' && zone.type !== 'line' && zone.type !== 'draw-poly' && zone.type !== 'draw-rect') {
-            this.ctx.fillStyle = 'white';
+            
+            // Determine Text Color
+            let textColor = 'white';
+            if (zone.autoTextColor !== false) { // Default to auto (true)
+                // Use contrast color based on fill color
+                // If noFill is true, we might want to default to black or white based on map? 
+                // But map is unknown. Default to black if noFill? Or keep white with shadow?
+                if (zone.noFill) {
+                    textColor = 'black'; // Or maybe keep white with shadow? Let's try black for outline only zones.
+                    // Actually, if it's outline only, it's on top of the map. White with shadow is safest.
+                    textColor = 'white'; 
+                } else {
+                    textColor = getContrastColor(color);
+                }
+            } else {
+                textColor = zone.textColor || 'white';
+            }
+
+            this.ctx.fillStyle = textColor;
             this.ctx.font = `${14 / renderScale}px Inter`;
-            this.ctx.shadowColor = "rgba(0,0,0,0.5)";
-            this.ctx.shadowBlur = 4;
+            
+            // Add shadow if white text or if specifically requested?
+            // Always adding shadow helps visibility on complex backgrounds
+            if (textColor === 'white' || textColor === '#ffffff' || textColor === '#FFFFFF') {
+                this.ctx.shadowColor = "rgba(0,0,0,0.5)";
+                this.ctx.shadowBlur = 4;
+            } else {
+                // If black text, maybe white shadow?
+                this.ctx.shadowColor = "rgba(255,255,255,0.5)";
+                this.ctx.shadowBlur = 4;
+            }
             
             let labelX, labelY;
+            
+            // Prepare date string
+            let dateStr = '';
+            if (zone.startDate || zone.endDate || zone.date) {
+                if (zone.startDate && zone.endDate) {
+                    dateStr = `${getWeekDayString(zone.startDate)} - ${getWeekDayString(zone.endDate)}`;
+                } else if (zone.startDate) {
+                    dateStr = getWeekDayString(zone.startDate);
+                } else if (zone.date) {
+                    dateStr = getWeekDayString(zone.date);
+                }
+            }
+
             if (zone.type === 'polygon') {
                 // Simple centroid approximation or just use bounding box center
                 labelX = zone.x + zone.width / 2;
                 labelY = zone.y + zone.height / 2;
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'middle';
+                
+                if (dateStr) {
+                    this.ctx.fillText(zone.name, labelX, labelY - (7 / renderScale));
+                    this.ctx.font = `${10 / renderScale}px Inter`;
+                    this.ctx.fillText(dateStr, labelX, labelY + (7 / renderScale));
+                } else {
+                    this.ctx.fillText(zone.name, labelX, labelY);
+                }
             } else {
                 labelX = zone.x + 5 / renderScale;
                 labelY = zone.y + 20 / renderScale;
                 this.ctx.textAlign = 'left';
                 this.ctx.textBaseline = 'alphabetic';
+                
+                this.ctx.fillText(zone.name, labelX, labelY);
+                
+                if (dateStr) {
+                    this.ctx.font = `${10 / renderScale}px Inter`;
+                    this.ctx.fillText(dateStr, labelX, labelY + (12 / renderScale));
+                }
             }
-            
-            this.ctx.fillText(zone.name, labelX, labelY);
             
             // Reset text align
             this.ctx.textAlign = 'left';
@@ -2043,7 +2372,22 @@ class CanvasManager {
                     });
                 }
 
+                // Calculate new zone range based on all connected activities
+                let minStart = null;
+                let maxEnd = null;
+                
+                connectedActivities.forEach(a => {
+                    if (a.start) {
+                        if (!minStart || a.start < minStart) minStart = a.start;
+                    }
+                    if (a.end) {
+                        if (!maxEnd || a.end > maxEnd) maxEnd = a.end;
+                    }
+                });
+
                 const updates = {
+                    startDate: minStart,
+                    endDate: maxEnd,
                     customData: {
                         ...zone.customData,
                         ...data.originalData, // Store raw excel data (maybe just from the last one?)
@@ -2126,27 +2470,33 @@ class CanvasManager {
 
             // Date Filter
             if (filters.dateStart || filters.dateEnd) {
-                if (!zone.date) return false; // No date = filtered out if date filter active
+                const zStart = zone.startDate || zone.date;
+                const zEnd = zone.endDate || zone.date;
                 
-                const zoneDate = new Date(zone.date);
+                if (!zStart && !zEnd) return false; 
+
                 if (filters.dateStart) {
-                    const start = new Date(filters.dateStart);
-                    if (zoneDate < start) return false;
+                    // If zone ends before filter start, hide it
+                    if (zEnd && zEnd < filters.dateStart) return false;
+                    if (!zEnd && zStart < filters.dateStart) return false;
                 }
                 if (filters.dateEnd) {
-                    const end = new Date(filters.dateEnd);
-                    if (zoneDate > end) return false;
+                    // If zone starts after filter end, hide it
+                    if (zStart && zStart > filters.dateEnd) return false;
                 }
             }
 
             // Week Filter
             if (filters.week) {
-                if (!zone.date) return false;
+                const zStart = zone.startDate || zone.date;
+                const zEnd = zone.endDate || zone.date;
                 
-                const weekStr = getWeekDayString(zone.date); // e.g. "W42-3"
+                if (!zStart) return false;
+                
+                const weekStr = getWeekDayString(zStart); 
                 if (!weekStr) return false;
 
-                const weekPart = weekStr.split('-')[0].replace('W', ''); // "42"
+                const weekPart = weekStr.split('-')[0].replace('W', ''); 
                 const weekNum = parseInt(weekPart, 10);
                 
                 // Parse filter input: "42" or "42-45"
@@ -2172,6 +2522,51 @@ class CanvasManager {
     handleStateChange(state) {
         // Redraw when state changes (e.g. filters, zones, etc.)
         this.draw();
+        this.updateDateRangeDisplay();
+    }
+
+    updateDateRangeDisplay() {
+        const visibleZones = this.getVisibleZones();
+        let minDate = null;
+        let maxDate = null;
+
+        visibleZones.forEach(zone => {
+            // Check startDate/endDate
+            if (zone.startDate) {
+                if (!minDate || zone.startDate < minDate) minDate = zone.startDate;
+                if (!maxDate || zone.startDate > maxDate) maxDate = zone.startDate;
+            }
+            if (zone.endDate) {
+                if (!minDate || zone.endDate < minDate) minDate = zone.endDate;
+                if (!maxDate || zone.endDate > maxDate) maxDate = zone.endDate;
+            }
+            // Fallback to legacy date
+            if (zone.date) {
+                if (!minDate || zone.date < minDate) minDate = zone.date;
+                if (!maxDate || zone.date > maxDate) maxDate = zone.date;
+            }
+        });
+
+        const displayEl = document.getElementById('date-range-display');
+        const textEl = document.getElementById('date-range-text');
+
+        if (minDate && maxDate) {
+            const startStr = getWeekDayString(minDate);
+            const endStr = getWeekDayString(maxDate);
+            
+            if (startStr && endStr) {
+                textEl.textContent = `${startStr} - ${endStr}`;
+                displayEl.classList.remove('hidden');
+            } else {
+                displayEl.classList.add('hidden');
+            }
+        } else if (minDate) {
+             const startStr = getWeekDayString(minDate);
+             textEl.textContent = `${startStr}`;
+             displayEl.classList.remove('hidden');
+        } else {
+            displayEl.classList.add('hidden');
+        }
     }
 
     exportPdf() {
