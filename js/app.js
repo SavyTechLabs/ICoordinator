@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("ICoordinator initializing...");
+    console.log("Zone Planner initializing...");
 
     // Initialize Managers
     const dataManager = new DataManager();
@@ -16,5 +16,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial Draw (if data exists from localStorage)
     canvasManager.draw();
 
-    console.log("ICoordinator ready!");
+    console.log("Zone Planner ready!");
 });

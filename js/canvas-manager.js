@@ -2687,7 +2687,7 @@ class CanvasManager {
         }
     }
 
-    exportPdf(quality = 0.8, filename = 'icoordinator-export') {
+    exportPdf(quality = 0.8, filename = 'Zone_Planner-export') {
         if (!this.backgroundImage) {
             alert(this.uiManager.t('uploadLayoutPrompt'));
             return;

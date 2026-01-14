@@ -5,7 +5,7 @@
 
 class DataManager {
     constructor() {
-        this.appVersion = "v.1.1";
+        this.appVersion = "v.2.1";
         this.state = {
             projectInfo: {
                 name: "Nytt Projekt",
@@ -76,7 +76,7 @@ class DataManager {
         this.debouncedSave = debounce(() => {
             // Clone state to avoid mutation during async save
             const stateToSave = JSON.parse(JSON.stringify(this.state));
-            db.save('icoordinator_data', stateToSave).catch(e => {
+            db.save('Zone_Planner_data', stateToSave).catch(e => {
                 console.error("Failed to save to IndexedDB", e);
             });
         }, 500);
@@ -309,14 +309,14 @@ class DataManager {
             
             // 1. Try IndexedDB
             try {
-                loadedState = await db.load('icoordinator_data');
+                loadedState = await db.load('Zone_Planner_data');
             } catch (e) {
                 console.warn("Could not load from IndexedDB, falling back to LocalStorage", e);
             }
 
             // 2. Fallback/Migration from LocalStorage
             if (!loadedState) {
-                const localData = localStorage.getItem('icoordinator_data');
+                const localData = localStorage.getItem('Zone_Planner_data');
                 if (localData) {
                     console.log("Migrating data from LocalStorage to IndexedDB...");
                     loadedState = JSON.parse(localData);
@@ -399,7 +399,7 @@ class DataManager {
 
     // --- Import/Export ---
 
-    async exportProject(filename = "icoordinator_project") {
+    async exportProject(filename = "Zone_Planner_project") {
         const jsonString = JSON.stringify(this.state, null, 2);
         
         // Ensure extension

@@ -1,0 +1,155 @@
+/* Modern Sidebar Layout
+   Standardizes the card-based design across all sidebar tabs */
+
+/* Card Container */
+.sidebar-card {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s ease;
+}
+
+.sidebar-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: #cbd5e1;
+}
+
+/* Section Header (Subtitle inside card) */
+.sidebar-card-header {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: 6px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* Card Actions / Content */
+.sidebar-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.sidebar-help-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Typography override for Headers inside sidebar */
+.sidebar h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-lg);
+    color: var(--text-main);
+    padding-left: 2px;
+}
+
+/* Button & Input refinements for inside cards */
+.sidebar-card .btn {
+    justify-content: center;
+    font-weight: 500;
+}
+
+.sidebar-card .btn .material-icons {
+    font-size: 1.2rem;
+    margin-right: 8px;
+}
+
+.sidebar-card input[type="text"],
+.sidebar-card input[type="file"] {
+    font-size: 0.9rem;
+}
+
+/* Tool Grid Refinement (Tools Tab) */
+.tools-grid-modern {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.tool-btn-modern {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 4px;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 70px;
+}
+
+.tool-btn-modern:hover {
+    background: #fff;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.tool-btn-modern.active {
+    background: #eff6ff; /* Primary light */
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.tool-btn-modern .material-icons {
+    font-size: 24px;
+    margin-bottom: 6px;
+}
+
+.tool-btn-modern span:last-child {
+    font-size: 0.7rem;
+    text-align: center;
+    line-height: 1.1;
+}
+
+/* Checkbox Lists (Filters) */
+.checkbox-list-modern {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.checkbox-item-modern {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    transition: background 0.1s;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.checkbox-item-modern:hover {
+    background-color: #f1f5f9;
+}
+
+.checkbox-item-modern input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.1);
+}

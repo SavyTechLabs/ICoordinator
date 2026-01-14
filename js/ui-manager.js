@@ -69,6 +69,9 @@ class UIManager {
             connectedActivitySection: document.getElementById('connected-activity-section'),
             connectedActivitiesList: document.getElementById('connected-activities-list'),
 
+            // Section Visibility
+            metaCardAppearance: document.getElementById('meta-card-appearance'),
+
             // Custom Fields
             customFieldsContainer: document.getElementById('custom-fields-container'),
             btnAddField: document.getElementById('btn-add-field'),
@@ -99,7 +102,12 @@ class UIManager {
             mapTitle: document.getElementById('map-title'),
             mapStart: document.getElementById('map-start'),
             mapEnd: document.getElementById('map-end'),
+            mapDiscipline: document.getElementById('map-discipline'),
+            mapStatus: document.getElementById('map-status'),
             btnConfirmImport: document.getElementById('btn-confirm-import'),
+            
+            // Buttons
+            btnAddActivity: document.getElementById('btn-add-activity'),
 
             // Legend
             viewModeSelect: document.getElementById('view-mode-select'),
@@ -266,6 +274,14 @@ class UIManager {
             this.elements.activitySearch.addEventListener('input', () => this.renderSchedule());
         }
 
+        // Add Activity
+        if (this.elements.btnAddActivity) {
+            this.elements.btnAddActivity.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.createManualActivity();
+            });
+        }
+
         // Zoom
         this.elements.zoomIn.addEventListener('click', () => {
             const rect = this.canvasManager.canvas.getBoundingClientRect();
@@ -313,9 +329,19 @@ class UIManager {
         // File Uploads
         this.elements.layoutUpload.addEventListener('change', (e) => this.handleLayoutUpload(e));
         this.elements.scheduleUpload.addEventListener('change', (e) => this.handleScheduleUpload(e));
+        
+        // Template Download
+        const btnDownloadTemplate = document.getElementById('btn-download-template');
+        if (btnDownloadTemplate) {
+            btnDownloadTemplate.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.downloadScheduleTemplate();
+            });
+        }
+
         this.elements.jsonUpload.addEventListener('change', (e) => this.handleJsonUpload(e));
         this.elements.btnExportJson.addEventListener('click', () => {
-            const defaultName = this.dataManager.getState().projectInfo.name || "icoordinator_project";
+            const defaultName = this.dataManager.getState().projectInfo.name || "Zone_Planner_project";
             this.dataManager.exportProject(defaultName);
         });
         if (this.elements.btnExportPdf) {
@@ -334,7 +360,7 @@ class UIManager {
             }
             if (this.elements.btnConfirmExport) {
                 this.elements.btnConfirmExport.addEventListener('click', () => {
-                    const filename = this.elements.exportFilename.value || 'icoordinator-export';
+                    const filename = this.elements.exportFilename.value || 'Zone_Planner-export';
                     const quality = parseFloat(this.elements.exportQuality.value);
                     this.canvasManager.exportPdf(quality, filename);
                     this.closeExportModal();
@@ -578,6 +604,10 @@ class UIManager {
     }
 
     selectZone(selection) {
+        // Clear activity selection
+        this.selectedActivityId = null;
+        this.elements.scheduleList.querySelectorAll('.schedule-item').forEach(el => el.classList.remove('active'));
+
         let zoneIds = [];
         if (selection instanceof Set) {
             zoneIds = Array.from(selection);
@@ -595,6 +625,11 @@ class UIManager {
 
         this.elements.metadataContent.classList.remove('hidden');
         this.elements.metadataEmpty.classList.add('hidden');
+
+        // Ensure appearance section is visible for zones
+        if (this.elements.metaCardAppearance) {
+            this.elements.metaCardAppearance.classList.remove('hidden');
+        }
 
         // Populate Dropdowns dynamically
         const disciplines = this.dataManager.getState().disciplines;
@@ -619,6 +654,10 @@ class UIManager {
             const zoneId = zoneIds[0];
             const zone = this.dataManager.getZone(zoneId);
             if (!zone) return;
+
+            // Reset Header
+            const header = this.elements.metadataContent.querySelector('.meta-card-header');
+            if (header) header.textContent = this.t('properties') || 'Egenskaper';
 
             // Populate fields
             this.elements.metaId.value = zone.id;
@@ -692,56 +731,8 @@ class UIManager {
                 if (el) el.style.display = (isSymbol || isText || isMeasurement) ? 'none' : 'block';
             });
 
-            // Connected Activity Display
-            let connectedActivities = zone.customData._connectedActivities || [];
-            
-            // Migration for display (if not yet migrated in data)
-            if (zone.customData._activityCode && connectedActivities.length === 0) {
-                 connectedActivities = [{
-                    code: zone.customData._activityCode,
-                    start: zone.customData._startDate,
-                    end: zone.customData._endDate,
-                    title: zone.customData.name || 'Legacy Activity'
-                }];
-            }
-
-            this.elements.connectedActivitiesList.innerHTML = '';
-            
-            if (connectedActivities.length > 0) {
-                this.elements.connectedActivitySection.classList.remove('hidden');
-                
-                connectedActivities.forEach((activity, index) => {
-                    const card = document.createElement('div');
-                    card.className = 'activity-card';
-                    card.style.marginBottom = '10px';
-                    
-                    card.innerHTML = `
-                        <div class="activity-row">
-                            <span class="label" style="font-weight:bold;">${activity.title || this.t('namelessActivity')}</span>
-                        </div>
-                        <div class="activity-row">
-                            <span class="label">${this.t('code')}:</span>
-                            <span class="value">${activity.code}</span>
-                        </div>
-                        <div class="activity-row">
-                            <span class="label">${this.t('date')}:</span>
-                            <span class="value">${activity.start || '?'} -> ${activity.end || '?'}</span>
-                        </div>
-                    `;
-                    
-                    const disconnectBtn = document.createElement('button');
-                    disconnectBtn.className = 'btn btn-small btn-outline full-width';
-                    disconnectBtn.style.marginTop = '0.5rem';
-                    disconnectBtn.textContent = this.t('disconnect');
-                    disconnectBtn.onclick = () => this.disconnectActivity(index);
-                    
-                    card.appendChild(disconnectBtn);
-                    this.elements.connectedActivitiesList.appendChild(card);
-                });
-
-            } else {
-                this.elements.connectedActivitySection.classList.add('hidden');
-            }
+            // Render Connected Activities
+            this.renderConnectedActivities(zone);
 
             this.renderCustomFields();
         } else {
@@ -790,7 +781,229 @@ class UIManager {
         }
     }
 
+    renderConnectedActivities(zone) {
+        // Connected Activity Display
+        let connectedActivities = zone.customData._connectedActivities || [];
+        
+        // Migration for display (if not yet migrated in data)
+        if (zone.customData._activityCode && connectedActivities.length === 0) {
+                connectedActivities = [{
+                code: zone.customData._activityCode,
+                start: zone.customData._startDate,
+                end: zone.customData._endDate,
+                title: zone.customData.name || this.t('legacyActivity')
+            }];
+        }
+
+        // Fetch fresh data from schedule
+        const schedule = this.dataManager.getState().schedule || [];
+        connectedActivities = connectedActivities.map(ca => {
+            const live = schedule.find(s => s.code === ca.code);
+            // Return merged object with live data taking precedence
+            return live ? { ...ca, ...live } : ca;
+        });
+
+        this.elements.connectedActivitiesList.innerHTML = '';
+        
+        if (connectedActivities.length > 0) {
+            if (this.elements.connectedActivitySection) this.elements.connectedActivitySection.classList.remove('hidden');
+            
+            connectedActivities.forEach((activity, index) => {
+                const card = document.createElement('div');
+                card.className = 'activity-card';
+                card.style.marginBottom = '10px';
+                
+                card.innerHTML = `
+                    <div class="activity-row">
+                        <span class="label" style="font-weight:bold;">${activity.title || this.t('namelessActivity')}</span>
+                    </div>
+                    <div class="activity-row">
+                        <span class="label">${this.t('code')}:</span>
+                        <span class="value">${activity.code}</span>
+                    </div>
+                    <div class="activity-row">
+                        <span class="label">${this.t('date')}:</span>
+                        <span class="value">${activity.start || '?'} -> ${activity.end || '?'}</span>
+                    </div>
+                `;
+                
+                const disconnectBtn = document.createElement('button');
+                disconnectBtn.className = 'btn btn-small btn-outline full-width';
+                disconnectBtn.style.marginTop = '0.5rem';
+                disconnectBtn.textContent = this.t('disconnect');
+                disconnectBtn.onclick = () => this.disconnectActivity(index);
+                
+                card.appendChild(disconnectBtn);
+                this.elements.connectedActivitiesList.appendChild(card);
+            });
+
+        } else {
+            if (this.elements.connectedActivitySection) this.elements.connectedActivitySection.classList.add('hidden');
+        }
+    }
+
+    selectActivity(activityId) {
+        // Clear zone selection
+        if (this.canvasManager) {
+            this.canvasManager.clearSelection(); 
+            // Also need to manually reset UI since clearSelection triggers selectZone([])
+            // which hides the panel. We want it hidden briefly anyway.
+        }
+        
+        this.selectedActivityId = activityId;
+        
+        // Highlight in list
+        this.elements.scheduleList.querySelectorAll('.schedule-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.id === String(activityId));
+        });
+
+        // Show Metadata Panel
+        this.elements.metadataContent.classList.remove('hidden');
+        this.elements.metadataEmpty.classList.add('hidden');
+
+        // Hide appearance section for activities
+        if (this.elements.metaCardAppearance) {
+            this.elements.metaCardAppearance.classList.add('hidden');
+        }
+
+        // Populate Dropdowns
+        // (Similar to selectZone)
+        const disciplines = this.dataManager.getState().disciplines;
+        this.elements.metaDiscipline.innerHTML = `<option value="">${this.t('selectDiscipline')}</option>`;
+        disciplines.forEach(d => {
+            const option = document.createElement('option');
+            option.value = d.id;
+            option.textContent = this.t(d.name);
+            this.elements.metaDiscipline.appendChild(option);
+        });
+
+        const statuses = this.dataManager.getState().statuses;
+        this.elements.metaStatus.innerHTML = '';
+        statuses.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.id;
+            option.textContent = this.t(s.name);
+            this.elements.metaStatus.appendChild(option);
+        });
+
+        const schedule = this.dataManager.getState().schedule;
+        const activity = schedule.find(a => a.code === activityId);
+        
+        if (!activity) return;
+        
+        // Update Header to show we are editing an activity
+        const header = this.elements.metadataContent.querySelector('.meta-card-header');
+        if (header) header.textContent = this.t('activities') || 'Aktivitet';
+
+        // Populate Fields
+        this.elements.metaName.value = activity.title || '';
+        this.elements.metaId.value = activity.code || ''; 
+        this.elements.metaStartDate.value = activity.start || '';
+        this.elements.metaEndDate.value = activity.end || '';
+        this.elements.metaDiscipline.value = activity.discipline || '';
+        this.elements.metaStatus.value = activity.status || 'planned';
+
+        // Hide non-activity fields
+        // We do this crudely by hiding parent elements if needed.
+        // For now, let's keep it simple. Users can ignore "Color" if it doesn't apply (or we use discipline color).
+        
+        // Hide Font Size for Activity
+        if(this.elements.metaFontSizeGroup) this.elements.metaFontSizeGroup.classList.add('hidden');
+        
+        this.elements.btnDeleteZone.onclick = (e) => {
+            e.stopPropagation();
+            if (confirm(this.t('confirmDelete') + "?")) {
+               const newSchedule = schedule.filter(a => a.code !== activityId);
+               this.dataManager.setSchedule(newSchedule);
+               this.renderSchedule();
+               this.selectedActivityId = null; 
+               this.elements.metadataContent.classList.add('hidden');
+               this.elements.metadataEmpty.classList.remove('hidden');
+            }
+        };
+        
+        // Hide Connections Section
+        if(this.elements.connectedActivitySection) this.elements.connectedActivitySection.classList.add('hidden');
+    }
+
+    createManualActivity() {
+        const id = 'ACT-' + Math.floor(Math.random() * 100000);
+        const today = new Date().toISOString().split('T')[0];
+        
+        const newActivity = {
+            code: id,
+            title: this.t('newActivity') || 'Ny Aktivitet',
+            start: today,
+            end: today,
+            discipline: '',
+            status: 'planned'
+        };
+
+        const currentSchedule = this.dataManager.getState().schedule || [];
+        this.dataManager.setSchedule([...currentSchedule, newActivity]);
+        this.renderSchedule();
+        this.selectActivity(id);
+    }
+
+    updateActivity(id, key, value) {
+        const schedule = this.dataManager.getState().schedule;
+        const index = schedule.findIndex(a => a.code === id);
+        if (index === -1) return;
+
+        const activity = { ...schedule[index] };
+        
+        if (key === 'metaName') activity.title = value;
+        else if (key === 'metaDiscipline') activity.discipline = value;
+        else if (key === 'metaStatus') activity.status = value;
+        else if (key === 'metaStartDate') activity.start = value;
+        else if (key === 'metaEndDate') activity.end = value;
+        
+        const newSchedule = [...schedule];
+        newSchedule[index] = activity;
+        this.dataManager.setSchedule(newSchedule);
+        
+        // Sync Logic: Update zones linked to this activity (Activity -> Zone)
+        const layout = this.dataManager.getActiveLayout();
+        if (layout && layout.zones) {
+            layout.zones.forEach(z => {
+                let isLinked = false;
+                if (z.customData) {
+                    if (z.customData._activityCode === id) isLinked = true;
+                    if (z.customData._connectedActivities && z.customData._connectedActivities.some(a => a.code === id)) isLinked = true;
+                }
+                
+                if (isLinked) {
+                    const zoneUpdates = {};
+                    
+                    if (key === 'metaName') zoneUpdates.name = value;
+                    else if (key === 'metaStartDate') zoneUpdates.startDate = value;
+                    else if (key === 'metaEndDate') zoneUpdates.endDate = value;
+                    else if (key === 'metaDiscipline') {
+                        zoneUpdates.discipline = value;
+                        // Start Sync Color logic from discipline
+                        const discipline = this.dataManager.getState().disciplines.find(d => d.id === value);
+                        if (discipline) {
+                            zoneUpdates.color = discipline.color;
+                        }
+                    }
+                    else if (key === 'metaStatus') zoneUpdates.status = value;
+
+                    if (Object.keys(zoneUpdates).length > 0) {
+                        this.dataManager.updateZone({ ...z, ...zoneUpdates });
+                    }
+                }
+            });
+        }
+
+        this.renderSchedule();
+    }
+
     updateSelectedZone(fieldId, value) {
+        if (this.selectedActivityId) {
+            this.updateActivity(this.selectedActivityId, fieldId, value);
+            return;
+        }
+
         const selection = this.canvasManager.selectedZoneIds;
         if (!selection || selection.size === 0) return;
 
@@ -877,6 +1090,29 @@ class UIManager {
 
             if (Object.keys(updates).length > 0) {
                 this.dataManager.updateZone({ ...zone, ...updates });
+                
+                // Sync to connected activity if dates/name changed
+                if ((updates.startDate || updates.endDate || updates.name) && (zone.customData && (zone.customData._activityCode || (zone.customData._connectedActivities && zone.customData._connectedActivities.length > 0)))) {
+                    const activityId = zone.customData._activityCode || (zone.customData._connectedActivities[0] && zone.customData._connectedActivities[0].code);
+                    if (activityId) {
+                        const schedule = this.dataManager.getState().schedule;
+                        const actIndex = schedule.findIndex(a => a.code === activityId);
+                        if (actIndex !== -1) {
+                            const newAct = { ...schedule[actIndex] };
+                            if (updates.startDate) newAct.start = updates.startDate;
+                            if (updates.endDate) newAct.end = updates.endDate;
+                            if (updates.name) newAct.title = updates.name; // Sync name -> title
+                            
+                            const newSchedule = [...schedule];
+                            newSchedule[actIndex] = newAct;
+                            this.dataManager.setSchedule(newSchedule);
+                            this.renderSchedule();
+
+                            // Update the connected activity display with new dates
+                            this.renderConnectedActivities(zone);
+                        }
+                    }
+                }
             }
         });
     }
@@ -926,6 +1162,41 @@ class UIManager {
         this.canvasManager.setBackground(canvas);
     }
 
+    downloadScheduleTemplate() {
+        if (typeof XLSX === 'undefined') {
+            alert(this.t('alertSheetJS'));
+            return;
+        }
+
+        // Define Headers - using Swedish as default
+        const headers = ['ID', 'Aktivitet', 'Startdatum', 'Slutdatum', 'Disciplin', 'Status'];
+        
+        // Example Row
+        const exampleRow = ['A101', 'Exempel Aktivitet', '2025-01-10', '2025-01-15', 'construction', 'planned'];
+
+        const ws_data = [headers, exampleRow];
+        
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+        // Adjust column width
+        const wscols = [
+            {wch: 10}, // ID
+            {wch: 20}, // Aktivitet
+            {wch: 12}, // Start
+            {wch: 12}, // Slut
+            {wch: 15}, // Disc
+            {wch: 15}  // Status
+        ];
+        ws['!cols'] = wscols;
+        
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, "Tidplan Mall");
+        
+        // Export
+        XLSX.writeFile(wb, "Tidplan_Mall.xlsx");
+    }
+
     async handleScheduleUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -953,7 +1224,8 @@ class UIManager {
 
     showMappingModal(firstRow) {
         const columns = Object.keys(firstRow);
-        const selects = [this.elements.mapCode, this.elements.mapTitle, this.elements.mapStart, this.elements.mapEnd];
+        // Include new selects
+        const selects = [this.elements.mapCode, this.elements.mapTitle, this.elements.mapStart, this.elements.mapEnd, this.elements.mapDiscipline, this.elements.mapStatus];
         
         // Helper to populate select
         const populate = (select, defaultKeywords) => {
@@ -972,9 +1244,11 @@ class UIManager {
         };
 
         populate(this.elements.mapCode, ['id', 'code', 'kod', 'activity id']);
-        populate(this.elements.mapTitle, ['name', 'namn', 'activity', 'task', 'rubrik']);
+        populate(this.elements.mapTitle, ['name', 'namn', 'activity', 'task', 'rubrik', 'aktivitet']);
         populate(this.elements.mapStart, ['start', 'början']);
         populate(this.elements.mapEnd, ['end', 'finish', 'slut', 'klar']);
+        populate(this.elements.mapDiscipline, ['discipline', 'disciplin', 'fack', 'kategori']);
+        populate(this.elements.mapStatus, ['status', 'stat', 'tillstånd', 'state']);
 
         this.elements.mappingModal.classList.remove('hidden');
     }
@@ -993,7 +1267,9 @@ class UIManager {
             code: this.elements.mapCode.value,
             title: this.elements.mapTitle.value,
             start: this.elements.mapStart.value,
-            end: this.elements.mapEnd.value
+            end: this.elements.mapEnd.value,
+            discipline: this.elements.mapDiscipline.value,
+            status: this.elements.mapStatus.value
         };
 
         console.log("Mapping:", mapping);
@@ -1003,15 +1279,35 @@ class UIManager {
             return;
         }
 
+        // Get Discipline/Status maps for validation/ID matching if needed? 
+        // For now, we take raw value or try to match ID
+        const state = this.dataManager.getState();
+        const disciplineMap = new Map((state.disciplines || []).map(d => [d.name.toLowerCase(), d.id])); 
+        const statusMap = new Map((state.statuses || []).map(s => [s.name.toLowerCase(), s.id]));
+
         try {
             // Process data
-            const processedData = this.tempExcelData.map(row => ({
-                code: row[mapping.code] || '',
-                title: row[mapping.title] || this.t('namelessActivity'),
-                start: this.formatDate(row[mapping.start]),
-                end: this.formatDate(row[mapping.end]),
-                originalData: row
-            }));
+            const processedData = this.tempExcelData.map(row => {
+                // Try to resolve discipline/status IDs
+                // If the excel contains "Bygg", we want "construction" if mapped
+                let disc = row[mapping.discipline] || '';
+                let stat = row[mapping.status] || 'planned';
+
+                // Simple check if the value matches a known ID or Name
+                // If not found, keep raw value or default
+                // Ideally, we should offer mapping for values too, but that's complex.
+                // We'll trust the user imports IDs or we match loosely on name.
+
+                return {
+                    code: row[mapping.code] || '',
+                    title: row[mapping.title] || this.t('namelessActivity'),
+                    start: this.formatDate(row[mapping.start]),
+                    end: this.formatDate(row[mapping.end]),
+                    discipline: disc,
+                    status: stat,
+                    originalData: row
+                };
+            });
 
             console.log("Processed data:", processedData);
 
@@ -1180,6 +1476,17 @@ class UIManager {
                 <span class="task-name" title="${task.title}">${task.title}</span>
             `;
 
+            el.dataset.id = task.code; // Store ID for click handler
+            
+            // Highlight if selected
+            if (this.selectedActivityId === task.code) {
+                el.classList.add('active');
+            }
+
+            el.addEventListener('click', () => {
+                this.selectActivity(task.code);
+            });
+
             el.addEventListener('dragstart', (e) => {
                 e.dataTransfer.setData('application/json', JSON.stringify(task));
                 e.dataTransfer.effectAllowed = 'copy';
@@ -1278,7 +1585,7 @@ class UIManager {
             if (projectInfo && projectInfo.name) {
                 // Sanitize filename
                 const safeName = projectInfo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                this.elements.exportFilename.value = safeName || 'icoordinator-export';
+                this.elements.exportFilename.value = safeName || 'zone_planner-export';
             }
         }
     }
@@ -1606,7 +1913,7 @@ class UIManager {
         this.elements.filterDisciplinesList.innerHTML = '';
         state.disciplines.forEach(d => {
             const div = document.createElement('div');
-            div.className = 'checkbox-item';
+            div.className = 'checkbox-item-modern';
             
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
@@ -1629,9 +1936,7 @@ class UIManager {
             
             // Color indicator
             const dot = document.createElement('span');
-            dot.style.width = '10px';
-            dot.style.height = '10px';
-            dot.style.borderRadius = '50%';
+            dot.className = 'color-dot';
             dot.style.backgroundColor = d.color;
 
             div.appendChild(checkbox);
@@ -1644,7 +1949,7 @@ class UIManager {
         this.elements.filterStatusesList.innerHTML = '';
         state.statuses.forEach(s => {
             const div = document.createElement('div');
-            div.className = 'checkbox-item';
+            div.className = 'checkbox-item-modern';
             
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
@@ -1666,9 +1971,7 @@ class UIManager {
             label.textContent = this.t(s.name);
             
             const dot = document.createElement('span');
-            dot.style.width = '10px';
-            dot.style.height = '10px';
-            dot.style.borderRadius = '50%';
+            dot.className = 'color-dot';
             dot.style.backgroundColor = s.color;
 
             div.appendChild(checkbox);

@@ -1,5 +1,5 @@
 /**
- * Utility functions for ICoordinator
+ * Utility functions for Zone Planner
  */
 
 // Generate a UUID
@@ -84,7 +84,7 @@ function getWeekDayString(dateString) {
  * Simple IndexedDB Wrapper
  * Allows storing large objects (blobs, files, large strings) that exceed localStorage limits.
  */
-const DB_NAME = 'ICoordinatorDB';
+const DB_NAME = 'ZonePlannerDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'projects';
 
