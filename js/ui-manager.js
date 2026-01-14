@@ -111,6 +111,7 @@ class UIManager {
             // Language
             settingsLanguage: document.getElementById('settings-language'),
             settingsZoneNaming: document.getElementById('settings-zone-naming'),
+            settingsFontSize: document.getElementById('settings-font-size'),
 
             // Layout Tabs
             layoutTabs: document.getElementById('layout-tabs'),
@@ -120,12 +121,28 @@ class UIManager {
             filterText: document.getElementById('filter-text'),
             filterDisciplinesList: document.getElementById('filter-disciplines-list'),
             filterStatusesList: document.getElementById('filter-statuses-list'),
-            filterDateStart: document.getElementById('filter-date-start'),
-            filterDateEnd: document.getElementById('filter-date-end'),
+            // filterDateStart: document.getElementById('filter-date-start'), // Removed
+            // filterDateEnd: document.getElementById('filter-date-end'), // Removed
             filterShowHidden: document.getElementById('filter-show-hidden'),
             btnResetFilters: document.getElementById('btn-reset-filters'),
-            filterWeek: document.getElementById('filter-week'),
+            // filterWeek: document.getElementById('filter-week'), // REMOVED
+
+            // Week Filter (Canvas)
+            btnWeekFilter: document.getElementById('btn-week-filter'),
+            weekFilterDropdown: document.getElementById('week-filter-dropdown'),
+            weekFilterContent: document.getElementById('week-filter-content'),
+            btnApplyWeeks: document.getElementById('btn-apply-weeks'),
+            btnSelectAllWeeks: document.getElementById('btn-select-all-weeks'),
+            dateRangeText: document.getElementById('date-range-text'),
             
+            // Export Modal
+            exportPdfModal: document.getElementById('export-pdf-modal'),
+            closeExportModalBtn: document.getElementById('close-export-modal'),
+            exportFilename: document.getElementById('export-filename'),
+            exportQuality: document.getElementById('export-quality'),
+            btnConfirmExport: document.getElementById('btn-confirm-export'),
+            btnCancelExport: document.getElementById('btn-cancel-export'),
+
             // Symbols
             symbolsGrid: document.getElementById('symbols-grid'),
             symbolUpload: document.getElementById('symbol-upload')
@@ -157,6 +174,12 @@ class UIManager {
         this.renderLegend();
         this.renderLayoutTabs();
         this.renderFilters();
+
+        // Init Version Info
+        const versionEl = document.getElementById('settings-version-info');
+        if (versionEl) {
+            versionEl.textContent = this.dataManager.appVersion;
+        }
     }
 
     setCanvasManager(cm) {
@@ -183,7 +206,11 @@ class UIManager {
         // Translate elements with data-i18n
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
-            el.textContent = this.t(key);
+            if (key === 'qualityInfo') {
+                el.innerHTML = this.t(key);
+            } else {
+                el.textContent = this.t(key);
+            }
         });
 
         // Translate elements with data-i18n-title
@@ -289,16 +316,38 @@ class UIManager {
         this.elements.jsonUpload.addEventListener('change', (e) => this.handleJsonUpload(e));
         this.elements.btnExportJson.addEventListener('click', () => {
             const defaultName = this.dataManager.getState().projectInfo.name || "icoordinator_project";
-            const filename = prompt(this.t('exportProject'), defaultName);
-            if (filename) {
-                this.dataManager.exportProject(filename);
-            }
+            this.dataManager.exportProject(defaultName);
         });
         if (this.elements.btnExportPdf) {
             this.elements.btnExportPdf.addEventListener('click', () => {
-                this.canvasManager.exportPdf();
+                this.openExportModal();
             });
         }
+        
+        // Export Modal Events
+        if (this.elements.exportPdfModal) {
+            if (this.elements.closeExportModalBtn) {
+                this.elements.closeExportModalBtn.addEventListener('click', () => this.closeExportModal());
+            }
+            if (this.elements.btnCancelExport) {
+                this.elements.btnCancelExport.addEventListener('click', () => this.closeExportModal());
+            }
+            if (this.elements.btnConfirmExport) {
+                this.elements.btnConfirmExport.addEventListener('click', () => {
+                    const filename = this.elements.exportFilename.value || 'icoordinator-export';
+                    const quality = parseFloat(this.elements.exportQuality.value);
+                    this.canvasManager.exportPdf(quality, filename);
+                    this.closeExportModal();
+                });
+            }
+            // Close on click outside
+            this.elements.exportPdfModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.exportPdfModal) {
+                    this.closeExportModal();
+                }
+            });
+        }
+
         this.elements.btnAddField.addEventListener('click', () => this.addCustomField());
 
         // Settings
@@ -324,6 +373,14 @@ class UIManager {
         if (this.elements.settingsZoneNaming) {
             this.elements.settingsZoneNaming.addEventListener('change', (e) => {
                 this.dataManager.setZoneNameMode(e.target.value);
+            });
+        }
+
+        if (this.elements.settingsFontSize) {
+            this.elements.settingsFontSize.addEventListener('change', (e) => {
+                const newSize = parseInt(e.target.value) || 14;
+                this.dataManager.updateProjectSettings({ baseFontSize: newSize });
+                this.canvasManager.draw(); 
             });
         }
 
@@ -378,6 +435,7 @@ class UIManager {
                 this.dataManager.setFilters({ text: e.target.value });
             });
         }
+        /* Removed Date Range Filters
         if (this.elements.filterDateStart) {
             this.elements.filterDateStart.addEventListener('change', (e) => {
                 this.dataManager.setFilters({ dateStart: e.target.value });
@@ -388,28 +446,70 @@ class UIManager {
                 this.dataManager.setFilters({ dateEnd: e.target.value });
             });
         }
+        */
         if (this.elements.filterShowHidden) {
             this.elements.filterShowHidden.addEventListener('change', (e) => {
                 this.dataManager.setFilters({ showHidden: e.target.checked });
             });
         }
-        if (this.elements.filterWeek) {
-            this.elements.filterWeek.addEventListener('input', (e) => {
-                this.dataManager.setFilters({ week: e.target.value });
-            });
-        }
+
         if (this.elements.btnResetFilters) {
             this.elements.btnResetFilters.addEventListener('click', () => {
                 this.dataManager.resetFilters();
                 // Reset UI inputs manually as they don't auto-bind two-way perfectly here
                 this.elements.filterText.value = '';
-                this.elements.filterDateStart.value = '';
-                this.elements.filterDateEnd.value = '';
-                this.elements.filterWeek.value = '';
+                // this.elements.filterDateStart.value = '';
+                // this.elements.filterDateEnd.value = '';
                 if (this.elements.filterShowHidden) this.elements.filterShowHidden.checked = false;
                 this.renderFilters(); // Re-render checkboxes
             });
         }
+
+        // Week Filter
+        if (this.elements.btnWeekFilter) {
+            this.elements.btnWeekFilter.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleWeekFilter();
+            });
+        }
+
+        if (this.elements.btnSelectAllWeeks) {
+            this.elements.btnSelectAllWeeks.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const checkboxes = this.elements.weekFilterContent.querySelectorAll('input[type="checkbox"]');
+                const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+                checkboxes.forEach(cb => cb.checked = !allChecked);
+            });
+        }
+
+        if (this.elements.btnApplyWeeks) {
+            this.elements.btnApplyWeeks.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const checkboxes = this.elements.weekFilterContent.querySelectorAll('input[type="checkbox"]:checked');
+                const allCheckboxes = this.elements.weekFilterContent.querySelectorAll('input[type="checkbox"]');
+                
+                let selectedWeeks = [];
+                // Only set filter if NOT all are selected (if all selected, empty filter = show all)
+                if (checkboxes.length > 0 && checkboxes.length < allCheckboxes.length) {
+                    selectedWeeks = Array.from(checkboxes).map(cb => parseInt(cb.value));
+                }
+                
+                this.dataManager.setFilters({ weeks: selectedWeeks });
+                this.toggleWeekFilter(false);
+            });
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', (e) => {
+            if (this.elements.weekFilterDropdown && !this.elements.weekFilterDropdown.classList.contains('hidden')) {
+               if (!this.elements.weekFilterDropdown.contains(e.target) && e.target !== this.elements.btnWeekFilter && !this.elements.btnWeekFilter.contains(e.target)) {
+                   this.toggleWeekFilter(false);
+               }
+           }
+       });
 
         // Symbol Upload
         if (this.elements.symbolUpload) {
@@ -1106,8 +1206,14 @@ class UIManager {
     }
 
     renderSettings() {
+        // Set current font size
+        if (this.elements.settingsFontSize) {
+            const currentSize = this.dataManager.getState().projectSettings?.baseFontSize || 14;
+            this.elements.settingsFontSize.value = currentSize;
+        }
+
         this.renderSettingsList(
-            this.elements.settingsDisciplinesList, 
+            this.elements.settingsDisciplinesList,  
             this.dataManager.getState().disciplines,
             'discipline'
         );
@@ -1162,6 +1268,25 @@ class UIManager {
             div.appendChild(deleteBtn);
             container.appendChild(div);
         });
+    }
+
+    openExportModal() {
+        if (this.elements.exportPdfModal) {
+            this.elements.exportPdfModal.classList.remove('hidden');
+            // Set default filename based on project name if available
+            const projectInfo = this.dataManager.getState().projectInfo;
+            if (projectInfo && projectInfo.name) {
+                // Sanitize filename
+                const safeName = projectInfo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                this.elements.exportFilename.value = safeName || 'icoordinator-export';
+            }
+        }
+    }
+
+    closeExportModal() {
+        if (this.elements.exportPdfModal) {
+            this.elements.exportPdfModal.classList.add('hidden');
+        }
     }
 
     addDiscipline() {
@@ -1310,20 +1435,34 @@ class UIManager {
     renderLegend() {
         const state = this.dataManager.getState();
         const mode = state.viewMode || 'discipline';
+        const activeLayout = this.dataManager.getActiveLayout();
+        const zones = activeLayout ? activeLayout.zones : [];
         
         // Update select value if changed externally (e.g. load)
         this.elements.viewModeSelect.value = mode;
 
         this.elements.legendItems.innerHTML = '';
         
-        let items = [];
+        let allItems = [];
         if (mode === 'discipline') {
-            items = state.disciplines || [];
+            allItems = state.disciplines || [];
         } else {
-            items = state.statuses || [];
+            allItems = state.statuses || [];
         }
 
-        items.forEach(item => {
+        // Filter items to show only those present/visible in current canvas
+        // We consider a property "visible" if at least one visible ("!hidden") zone uses it.
+        const usedIds = new Set();
+        zones.forEach(zone => {
+           if (!zone.hidden) { // Only count visible zones
+               const val = mode === 'discipline' ? zone.discipline : zone.status;
+               if (val) usedIds.add(val);
+           } 
+        });
+
+        const filteredItems = allItems.filter(item => usedIds.has(item.id));
+
+        filteredItems.forEach(item => {
             const div = document.createElement('div');
             div.className = 'legend-item';
             
@@ -1340,7 +1479,124 @@ class UIManager {
         });
     }
 
+    toggleWeekFilter(show) {
+        if (!this.elements.weekFilterDropdown) return;
+        
+        const isHidden = this.elements.weekFilterDropdown.classList.contains('hidden');
+        const shouldShow = show !== undefined ? show : isHidden;
+        
+        if (shouldShow) {
+            this.elements.weekFilterDropdown.classList.remove('hidden');
+        } else {
+            this.elements.weekFilterDropdown.classList.add('hidden');
+        }
+    }
+
+    populateWeekFilter() {
+        if (!this.elements.weekFilterContent) return;
+        
+        const state = this.dataManager.getState();
+        const zones = [];
+        state.layouts.forEach(l => {
+            if (l.zones) zones.push(...l.zones);
+        });
+
+        const weeks = new Set();
+        zones.forEach(z => {
+            const startStr = z.startDate || z.date;
+            const endStr = z.endDate || z.date;
+
+            const s = startStr ? getWeekNumber(new Date(startStr)) : null;
+            const e = endStr ? getWeekNumber(new Date(endStr)) : null;
+
+            if (s) weeks.add(s);
+            if (e) weeks.add(e);
+            
+            if (s && e && e > s) {
+                // Add intermediate weeks
+                for (let i = s + 1; i < e; i++) weeks.add(i);
+            }
+        });
+        
+        const sortedWeeks = Array.from(weeks).sort((a,b) => a - b);
+        
+        // Get current filter
+        // We support 'weeks' (array)
+        const currentWeeks = state.filters.weeks || [];
+        
+        this.elements.weekFilterContent.innerHTML = '';
+        
+        if (sortedWeeks.length === 0) {
+            this.elements.weekFilterContent.innerHTML = `<div style="padding:0.5rem; color:#888;">${this.t('noDates')}</div>`;
+            return;
+        }
+
+        sortedWeeks.forEach(week => {
+            const div = document.createElement('div');
+            div.className = 'week-checkbox-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = week;
+            // logic: if filter is empty, show all checked.
+            checkbox.checked = currentWeeks.length === 0 || currentWeeks.includes(week) || currentWeeks.includes(String(week));
+            
+            const label = document.createElement('span');
+            label.textContent = `v.${week}`;
+            
+            div.appendChild(checkbox);
+            div.appendChild(label);
+            
+            // Allow clicking row to toggle
+            div.addEventListener('click', (e) => {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                }
+            });
+
+            this.elements.weekFilterContent.appendChild(div);
+        });
+    }
+
+    updateDateRangeDisplay() {
+        if (!this.elements.dateRangeText) return;
+        
+        const state = this.dataManager.getState();
+        const filters = state.filters;
+        
+        if (!filters.weeks || filters.weeks.length === 0) {
+            this.elements.dateRangeText.textContent = this.t('allWeeks') || 'All Weeks';
+        } else {
+            // numeric sort
+            const sorted = [...filters.weeks].sort((a,b) => a-b);
+            if (sorted.length === 1) {
+                this.elements.dateRangeText.textContent = `v.${sorted[0]}`;
+            } else {
+                // Check if contiguous
+                let contiguous = true;
+                for(let i=0; i<sorted.length-1; i++) {
+                    if (sorted[i+1] !== sorted[i] + 1) {
+                        contiguous = false;
+                        break;
+                    }
+                }
+                
+                if (contiguous) {
+                    this.elements.dateRangeText.textContent = `v.${sorted[0]} - v.${sorted[sorted.length-1]}`;
+                } else {
+                    this.elements.dateRangeText.textContent = `v.${sorted.join(', v.')}`; // or truncated
+                    if (this.elements.dateRangeText.textContent.length > 20) {
+                         this.elements.dateRangeText.textContent = `v.${sorted[0]}... (${sorted.length})`;
+                    }
+                }
+            }
+        }
+    }
+
     renderFilters() {
+        this.populateWeekFilter();
+        this.updateDateRangeDisplay();
+
         if (!this.elements.filterDisciplinesList) return;
 
         const state = this.dataManager.getState();

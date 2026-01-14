@@ -7,6 +7,8 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/date-display.css">
+    <link rel="stylesheet" href="css/settings-about.css">
+    <link rel="stylesheet" href="css/metadata-panel.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -93,11 +95,11 @@
                         </button>
                         <button id="tool-draw" class="tool-btn" title="Rita Rektangel" data-i18n-title="rectangle">
                             <span class="material-icons">crop_square</span>
-                            <span data-i18n="rectangle">Rektangel</span>
+                            <span data-i18n="rectangle">Zon Rektangel</span>
                         </button>
                         <button id="tool-poly" class="tool-btn" title="Rita Polygon" data-i18n-title="polygon">
                             <span class="material-icons">polyline</span>
-                            <span data-i18n="polygon">Polygon</span>
+                            <span data-i18n="polygon">Zon Polygon</span>
                         </button>
                         <button id="tool-cloud" class="tool-btn" title="Rita Moln" data-i18n-title="cloud">
                             <span class="material-icons">cloud</span>
@@ -211,29 +213,6 @@
                     <div class="divider"></div>
 
                     <div class="filter-section">
-                        <label data-i18n="dateRange">Datumintervall</label>
-                        <div style="display: flex; gap: 5px; flex-direction: column;">
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <span style="font-size: 0.8rem;" data-i18n="from">Från:</span>
-                                <input type="date" id="filter-date-start" style="width: 120px;">
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <span style="font-size: 0.8rem;" data-i18n="to">Till:</span>
-                                <input type="date" id="filter-date-end" style="width: 120px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <div class="filter-section">
-                        <label data-i18n="weekLabel">Vecka (ex. 42 eller 42-45)</label>
-                        <input type="text" id="filter-week" class="full-width" placeholder="v.nr">
-                    </div>
-
-                    <div class="divider"></div>
-
-                    <div class="filter-section">
                         <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; cursor: pointer;">
                             <input type="checkbox" id="filter-show-hidden"> <span data-i18n="showHidden">Visa dolda objekt</span>
                         </label>
@@ -251,23 +230,34 @@
                         <span class="material-icons">tune</span> <span data-i18n="projectSettings">Projektinställningar</span>
                     </button>
 
-                    <div class="divider"></div>
-                    
-                    <h3 data-i18n="about">Om Appen</h3>
-                    <p class="text-muted small" data-i18n="aboutText" style="margin-bottom: 1rem;">
-                        Zone Planner är ett verktyg för visuell byggplanering. Ladda upp ritningar, markera zoner och koppla dem till aktiviteter.
-                    </p>
+                    <!-- About Section (Redesigned) -->
+                    <div class="settings-about-wrapper">
+                        
+                        <div class="settings-about-header">
+                            <h3 data-i18n="about">Om Appen</h3>
+                            <span id="settings-version-info" class="app-version-badge"></span>
+                        </div>
+                        
+                        <p class="settings-description" data-i18n="aboutText">
+                            Zone Planner är ett verktyg för visuell byggplanering. Ladda upp ritningar, markera zoner och koppla dem till aktiviteter.
+                        </p>
 
-                    <h4 style="margin-top: 1rem; font-size: 0.9rem;" data-i18n="legalInfo">Juridisk Information</h4>
-                    <div class="legal-text" style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
-                        <p><strong data-i18n="disclaimerTitle">Ansvarsfriskrivning</strong>: <span data-i18n="disclaimerText">Denna programvara tillhandahålls "i befintligt skick" utan några garantier. Användning sker på egen risk. Utvecklaren ansvarar inte för eventuella fel i planering eller dataförlust.</span></p>
-                        <p style="margin-top: 4px;" data-i18n="copyright">&copy; 2025 Zone Planner. Alla rättigheter förbehållna.</p>
+                        <div class="info-card">
+                            <div class="info-card-header" data-i18n="legalInfo">Juridisk Information</div>
+                            <div class="info-card-content">
+                                <p><strong data-i18n="disclaimerTitle">Ansvarsfriskrivning</strong>: <span data-i18n="disclaimerText">Denna programvara tillhandahålls "i befintligt skick" utan några garantier. Användning sker på egen risk.</span></p>
+                                <p style="margin-top: 6px;" data-i18n="copyright">&copy; 2025 Zone Planner. Alla rättigheter förbehållna.</p>
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="info-card-header" data-i18n="reportBugs">Rapportera Fel</div>
+                            <div class="info-card-content">
+                                <p data-i18n="reportBugsText">Hittar du fel eller har förslag?</p>
+                                <p><a href="mailto:support@zoneplanner.se">support@zoneplanner.se</a></p>
+                            </div>
+                        </div>
                     </div>
-
-                    <h4 style="margin-top: 1rem; font-size: 0.9rem;" data-i18n="reportBugs">Rapportera Fel</h4>
-                    <p class="text-muted small" data-i18n="reportBugsText">
-                        Hittar du fel eller har förslag? Kontakta xxx@xxx.xx
-                    </p>
                 </div>
             </div>
         </aside>
@@ -301,10 +291,25 @@
                     </div>
                 </div>
 
-                <!-- Date Range Display -->
-                <div id="date-range-display" class="date-range-display hidden">
-                    <span class="material-icons" style="font-size: 16px;">date_range</span>
-                    <span id="date-range-text">v.1-1 - v.52-7</span>
+                <!-- Date Range / Week Filter Display -->
+                <div id="date-range-display" class="date-range-display">
+                    <button id="btn-week-filter" class="icon-btn-text" title="Filtrera veckor">
+                        <span class="material-icons" style="color: #2563EB;">date_range</span>
+                        <span id="date-range-text">--</span>
+                    </button>
+                    <!-- Dropdown for week selection -->
+                    <div id="week-filter-dropdown" class="week-filter-dropdown hidden">
+                         <div class="week-filter-header">
+                            <span style="font-weight: bold; font-size: 0.8rem;">Välj veckor</span>
+                            <button id="btn-select-all-weeks" class="btn-text" style="font-size: 0.7rem;">Alla</button>
+                         </div>
+                         <div id="week-filter-content" class="week-filter-content">
+                             <!-- Populated by JS -->
+                         </div>
+                         <div class="week-filter-actions">
+                             <button id="btn-apply-weeks" class="btn-small btn-primary full-width">Ok</button>
+                         </div>
+                    </div>
                 </div>
             </div>
             <div class="canvas-controls">
@@ -323,122 +328,142 @@
             </div>
             
             <div id="metadata-content" class="metadata-content hidden">
-                <div class="form-group">
-                    <label data-i18n="id">ID</label>
-                    <input type="text" id="meta-id" readonly class="input-readonly">
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="nameZone">Namn / Zon</label>
-                    <input type="text" id="meta-name" placeholder="Namnge zonen..." data-i18n-placeholder="nameZonePlaceholder">
-                </div>
-
-                <div class="form-group hidden" id="meta-font-size-group">
-                    <label data-i18n="fontSize">Teckenstorlek</label>
-                    <input type="number" id="meta-font-size" min="8" max="100" value="16">
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="discipline">Disciplin</label>
-                    <select id="meta-discipline">
-                        <option value="" data-i18n="selectDiscipline">Välj disciplin...</option>
-                        <!-- Options populated dynamically -->
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="date">Datum</label>
-                    <div style="display: flex; gap: 5px; flex-direction: column;">
-                        <div style="display: flex; gap: 5px; align-items: center;">
-                            <label style="font-size: 0.8rem; width: 40px;" data-i18n="start">Start:</label>
-                            <input type="date" id="meta-start-date" class="full-width">
-                        </div>
-                        <div style="display: flex; gap: 5px; align-items: center;">
-                            <label style="font-size: 0.8rem; width: 40px;" data-i18n="end">Slut:</label>
-                            <input type="date" id="meta-end-date" class="full-width">
-                        </div>
-                        <input type="text" id="meta-date-display" readonly style="width: 100%; text-align: center; background: #f1f5f9; margin-top: 5px;" title="Vecka-Dag">
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="contactPerson">Kontaktperson</label>
-                    <input type="text" id="meta-contact">
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="freeText">Fritext</label>
-                    <input type="text" id="meta-freetext">
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="status">Status</label>
-                    <select id="meta-status">
-                        <!-- Options populated dynamically -->
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label data-i18n="appearance">Utseende</label>
+                
+                <!-- Group 1: Identity -->
+                <div class="meta-card">
+                    <div class="meta-card-header" data-i18n="properties">Grundläggande</div>
                     
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="fill">Fyllnad:</label>
-                        <input type="color" id="meta-color" class="color-input">
-                        <input type="range" id="meta-opacity" min="0" max="1" step="0.1" style="flex: 1;">
-                        <span id="opacity-val" style="font-size: 0.8rem; width: 30px;">50%</span>
+                    <div class="meta-row">
+                        <label data-i18n="nameZone">Namn / Zon</label>
+                        <input type="text" id="meta-name" class="meta-input" placeholder="Namnge zonen..." data-i18n-placeholder="nameZonePlaceholder">
+                    </div>
+                    
+                    <div class="meta-row hidden" id="meta-font-size-group">
+                        <label data-i18n="fontSize">Teckenstorlek</label>
+                        <input type="number" id="meta-font-size" class="meta-input" min="8" max="100" value="16">
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="border">Kantlinje:</label>
-                        <input type="color" id="meta-border-color" class="color-input">
-                        <div style="flex: 1;"></div> <!-- Spacer to align with above -->
-                    </div>
-
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="pattern">Mönster:</label>
-                        <select id="meta-pattern" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
-                            <option value="none" data-i18n="patternNone">Inget (Solid)</option>
-                            <option value="diagonal-right" data-i18n="patternDiagonalRight">Diagonal Höger (///)</option>
-                            <option value="diagonal-left" data-i18n="patternDiagonalLeft">Diagonal Vänster (\\\)</option>
-                            <option value="cross" data-i18n="patternCross">Kryss (X)</option>
-                            <option value="grid" data-i18n="patternGrid">Rutnät (+)</option>
-                            <option value="horizontal" data-i18n="patternHorizontal">Horisontell (-)</option>
-                            <option value="vertical" data-i18n="patternVertical">Vertikal (|)</option>
+                    <div class="meta-row">
+                        <label data-i18n="discipline">Disciplin</label>
+                        <select id="meta-discipline" class="meta-select">
+                            <option value="" data-i18n="selectDiscipline">Välj disciplin...</option>
                         </select>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="lineType">Linjetyp:</label>
-                        <select id="meta-line-type" class="full-width" style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
-                            <option value="solid" data-i18n="lineSolid">Heldragen</option>
-                            <option value="dashed" data-i18n="lineDashed">Streckad</option>
-                            <option value="dotted" data-i18n="lineDotted">Prickad</option>
-                        </select>
+                    <div class="meta-row">
+                        <label data-i18n="status">Status</label>
+                        <select id="meta-status" class="meta-select"></select>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
-                        <label style="font-size: 0.8rem; width: 70px;" data-i18n="textColor">Textfärg:</label>
-                        <input type="color" id="meta-text-color" class="color-input" disabled>
-                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.8rem; margin-left: 10px;">
-                            <input type="checkbox" id="meta-auto-text-color" checked> <span data-i18n="auto">Auto</span>
-                        </label>
+                    <div class="meta-row">
+                         <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <label style="margin:0; color: var(--text-muted); font-size: 0.75rem;">ID</label>
+                            <input type="text" id="meta-id" readonly class="meta-input readonly" style="width: 120px; font-size: 0.75rem; padding: 2px 4px;">
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Schedule -->
+                <div class="meta-card">
+                    <div class="meta-card-header" data-i18n="date">Tidplanering</div>
+                    <div class="date-picker-group">
+                        <div class="meta-row-flex" style="margin-bottom: 4px;">
+                            <span class="meta-label-fixed" data-i18n="start">Start:</span>
+                            <input type="date" id="meta-start-date" class="meta-input" style="padding: 2px;">
+                        </div>
+                        <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="end">Slut:</span>
+                            <input type="date" id="meta-end-date" class="meta-input" style="padding: 2px;">
+                        </div>
+                    </div>
+                    <div class="meta-row">
+                         <input type="text" id="meta-date-display" readonly class="meta-input readonly" style="margin-top: 8px; text-align: center; font-weight: 500;" title="Vecka-Dag">
+                    </div>
+                </div>
+
+                <!-- Group 3: Details -->
+                <div class="meta-card">
+                    <div class="meta-card-header" data-i18n="appearance">Utseende & Info</div>
+                    
+                    <div class="meta-row">
+                         <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="fill">Fyllnad:</span>
+                            <input type="color" id="meta-color" class="color-input">
+                         </div>
+                         <div style="display: flex; align-items: center; gap: 4px; margin-top: 8px;">
+                            <span class="meta-label-fixed" style="font-size: 0.75rem; color: var(--text-muted);">Opacitet:</span>
+                            <div style="flex:1; display: flex; align-items: center; gap: 4px;">
+                                <input type="range" id="meta-opacity" min="0" max="1" step="0.1" style="width: 100%;">
+                                <span id="opacity-val" style="font-size: 0.7rem; min-width: 24px; text-align: right;">50%</span>
+                            </div>
+                         </div>
                     </div>
 
-                    <div style="margin-top: 8px;">
-                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+                    <div class="meta-row">
+                        <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="border">Kantlinje:</span>
+                            <input type="color" id="meta-border-color" class="color-input">
+                        </div>
+                    </div>
+
+                    <div class="meta-row">
+                        <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="pattern">Mönster:</span>
+                            <select id="meta-pattern" class="meta-select" style="padding: 2px;">
+                                <option value="none" data-i18n="patternNone">Inget (Solid)</option>
+                                <option value="diagonal-right" data-i18n="patternDiagonalRight">Diagonal (///)</option>
+                                <option value="diagonal-left" data-i18n="patternDiagonalLeft">Diagonal (\\\)</option>
+                                <option value="cross" data-i18n="patternCross">Kryss</option>
+                                <option value="grid" data-i18n="patternGrid">Rutnät</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="meta-row">
+                        <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="lineType">Linje:</span>
+                            <select id="meta-line-type" class="meta-select" style="padding: 2px;">
+                                <option value="solid" data-i18n="lineSolid">Heldragen</option>
+                                <option value="dashed" data-i18n="lineDashed">Streckad</option>
+                                <option value="dotted" data-i18n="lineDotted">Prickad</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="meta-row">
+                        <div class="meta-row-flex">
+                            <span class="meta-label-fixed" data-i18n="textColor">Textfärg:</span>
+                            <input type="color" id="meta-text-color" class="color-input" disabled>
+                            <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; font-size: 0.8rem; margin: 0;">
+                                <input type="checkbox" id="meta-auto-text-color" checked> <span data-i18n="auto">Auto</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 0.85rem; margin-bottom: 4px;">
                             <input type="checkbox" id="meta-no-fill"> <span data-i18n="borderOnly">Endast ram (ingen fyllning)</span>
                         </label>
-                    </div>
-                    <div style="margin-top: 4px;">
-                        <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 0.85rem;">
                             <input type="checkbox" id="meta-hidden"> <span data-i18n="hideObject">Dölj objekt</span>
                         </label>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label data-i18n="comments">Anteckningar (Dolda)</label>
-                    <textarea id="meta-comments" rows="4"></textarea>
+                <div class="meta-card">
+                    <div class="meta-card-header" data-i18n="comments">Övrigt</div>
+                    <div class="meta-row">
+                        <label data-i18n="contactPerson">Kontaktperson</label>
+                        <input type="text" id="meta-contact" class="meta-input">
+                    </div>
+                    <div class="meta-row">
+                        <label data-i18n="freeText">Fritext</label>
+                        <input type="text" id="meta-freetext" class="meta-input">
+                    </div>
+                    <div class="meta-row">
+                        <label data-i18n="comments">Dolda antechningar</label>
+                        <textarea id="meta-comments" class="meta-textarea" rows="3"></textarea>
+                    </div>
                 </div>
 
                 <div id="connected-activity-section" class="hidden">
@@ -490,6 +515,14 @@
                         <option value="manual" data-i18n="zoneNameManual">Manuell namngivning</option>
                     </select>
                 </div>
+                
+                <div class="settings-section">
+                    <h3 data-i18n="appearance">Utseende</h3>
+                    <label style="display: block; margin-bottom: 5px;">
+                        <span data-i18n="baseFontSize">Grundstorlek Text (px)</span>
+                        <input type="number" id="settings-font-size" class="full-width" value="14" min="8" max="40" style="padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                    </label>
+                </div>
 
                 <div class="divider"></div>
 
@@ -539,6 +572,47 @@
 
                 <div class="divider"></div>
                 <button id="btn-confirm-import" class="btn btn-primary full-width" data-i18n="import">Importera</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export PDF Modal -->
+    <div id="export-pdf-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="exportPdfTitle">Exportera PDF</h2>
+                <button id="close-export-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label data-i18n="fileName">Filnamn</label>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <input type="text" id="export-filename" value="icoordinator-export" class="full-width">
+                        <span style="color: var(--text-muted); font-weight: 500;">.pdf</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label data-i18n="quality">Kvalitet</label>
+                    <select id="export-quality" class="full-width">
+                        <option value="0.4" data-i18n="qualityLow">Låg (Liten filstorlek)</option>
+                        <option value="0.6" data-i18n="qualityMedium">Medium (Balanserad)</option>
+                        <option value="0.9" selected data-i18n="qualityHigh">Hög (Bäst upplösning)</option>
+                    </select>
+                </div>
+                
+                <div style="background-color: #f8fafc; padding: 10px; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+                    <p class="small text-muted" data-i18n="qualityInfo" style="margin: 0; line-height: 1.5;">
+                        Hög: Bäst för utskrift. Större filstorlek.<br>
+                        Medium: Bra för skärmvisning.<br>
+                        Låg: Lämplig för e-post. Minst filstorlek.
+                    </p>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                    <button id="btn-cancel-export" class="btn btn-secondary" data-i18n="cancel">Avbryt</button>
+                    <button id="btn-confirm-export" class="btn btn-primary" data-i18n="export">Exportera</button>
+                </div>
             </div>
         </div>
     </div>

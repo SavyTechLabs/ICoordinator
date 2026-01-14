@@ -53,6 +53,18 @@ function getContrastColor(hexcolor) {
     return (yiq >= 128) ? 'black' : 'white';
 }
 
+function getWeekNumber(date) {
+    if (!date) return null;
+    if (typeof date === 'string') date = new Date(date);
+    if (isNaN(date.getTime())) return null;
+
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+}
+
 function getWeekDayString(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);

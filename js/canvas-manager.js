@@ -1152,25 +1152,15 @@ class CanvasManager {
             }
 
             if (newHeight > 5) {
-                const newFontSize = Math.round(newHeight / 1.2);
-                this.ctx.save();
-                this.ctx.font = `${newFontSize}px Arial`;
-                const metrics = this.ctx.measureText(zone.name);
-                this.ctx.restore();
-
+                // Auto-scaling font logic REMOVED to keep font size fixed
+                // const newFontSize = Math.round(newHeight / 1.2);
+                
                 this.dataManager.updateZone({
                     ...zone,
                     y: newY,
                     height: newHeight,
-                    width: metrics.width,
-                    customData: { ...zone.customData, fontSize: newFontSize }
+                    width: zone.width // Keep width or recalculate if linked? Text width might change if font changed, but we removed that.
                 }, false);
-                
-                // Update UI if selected
-                if (this.selectedZoneId === zone.id) {
-                    const fontSizeInput = document.getElementById('meta-font-size');
-                    if (fontSizeInput) fontSizeInput.value = newFontSize;
-                }
             }
             return;
         }
@@ -1999,83 +1989,192 @@ class CanvasManager {
         // Draw Label (Skip for symbols unless they have a name override?)
         if (zone.type !== 'symbol' && zone.type !== 'cloud' && zone.type !== 'measure-area' && zone.type !== 'measure-length' && zone.type !== 'calibration-line' && zone.type !== 'text' && zone.type !== 'arrow' && zone.type !== 'line' && zone.type !== 'draw-poly' && zone.type !== 'draw-rect') {
             
-            // Determine Text Color
-            let textColor = 'white';
-            if (zone.autoTextColor !== false) { // Default to auto (true)
-                // Use contrast color based on fill color
-                // If noFill is true, we might want to default to black or white based on map? 
-                // But map is unknown. Default to black if noFill? Or keep white with shadow?
-                if (zone.noFill) {
-                    textColor = 'black'; // Or maybe keep white with shadow? Let's try black for outline only zones.
-                    // Actually, if it's outline only, it's on top of the map. White with shadow is safest.
-                    textColor = 'white'; 
-                } else {
-                    textColor = getContrastColor(color);
-                }
+            // 13. Smart Label Rendering (Hide for tiny objects, move outside for small ones)
+            // minDim is still calculated relative to screen to hide text when it becomes visually too small
+            const minDim = 10 / renderScale;
+            if (zone.width < minDim || zone.height < minDim) {
+                // Too small, skip text
             } else {
-                textColor = zone.textColor || 'white';
-            }
-
-            this.ctx.fillStyle = textColor;
-            this.ctx.font = `${14 / renderScale}px Inter`;
-            
-            // Add shadow if white text or if specifically requested?
-            // Always adding shadow helps visibility on complex backgrounds
-            if (textColor === 'white' || textColor === '#ffffff' || textColor === '#FFFFFF') {
-                this.ctx.shadowColor = "rgba(0,0,0,0.5)";
-                this.ctx.shadowBlur = 4;
-            } else {
-                // If black text, maybe white shadow?
-                this.ctx.shadowColor = "rgba(255,255,255,0.5)";
-                this.ctx.shadowBlur = 4;
-            }
-            
-            let labelX, labelY;
-            
-            // Prepare date string
-            let dateStr = '';
-            if (zone.startDate || zone.endDate || zone.date) {
-                if (zone.startDate && zone.endDate) {
-                    dateStr = `${getWeekDayString(zone.startDate)} - ${getWeekDayString(zone.endDate)}`;
-                } else if (zone.startDate) {
-                    dateStr = getWeekDayString(zone.startDate);
-                } else if (zone.date) {
-                    dateStr = getWeekDayString(zone.date);
-                }
-            }
-
-            if (zone.type === 'polygon') {
-                // Simple centroid approximation or just use bounding box center
-                labelX = zone.x + zone.width / 2;
-                labelY = zone.y + zone.height / 2;
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
                 
-                if (dateStr) {
-                    this.ctx.fillText(zone.name, labelX, labelY - (7 / renderScale));
-                    this.ctx.font = `${10 / renderScale}px Inter`;
-                    this.ctx.fillText(dateStr, labelX, labelY + (7 / renderScale));
+                // Determine Text Color
+                let textColor = 'white';
+                if (zone.autoTextColor !== false) { 
+                    if (zone.noFill) {
+                        textColor = 'white'; // White with shadow is safest for outlines over maps
+                    } else {
+                        textColor = getContrastColor(color);
+                    }
                 } else {
-                    this.ctx.fillText(zone.name, labelX, labelY);
+                    textColor = zone.textColor || 'white';
                 }
-            } else {
-                labelX = zone.x + 5 / renderScale;
-                labelY = zone.y + 20 / renderScale;
+
+                this.ctx.fillStyle = textColor;
+                
+                // Use Global Font Size Setting (Default 14) unless overridden by zone specific
+                const globalFontSize = this.dataManager.getState().projectSettings?.baseFontSize || 14;
+                const baseFontSize = zone.customData && zone.customData.fontSize ? zone.customData.fontSize : globalFontSize;
+                
+                // FIXED SCALING: Use World Units directly so text scales with the drawing
+                const mainFontSize = baseFontSize;
+                const dateFontSize = baseFontSize * 0.7; 
+                
+                this.ctx.font = `${mainFontSize}px Inter`;
+                
+                // Shadow for visibility
+                if (textColor === 'white' || textColor === '#ffffff' || textColor === '#FFFFFF') {
+                    this.ctx.shadowColor = "rgba(0,0,0,0.5)";
+                    this.ctx.shadowBlur = 4;
+                } else {
+                    this.ctx.shadowColor = "rgba(255,255,255,0.5)";
+                    this.ctx.shadowBlur = 4;
+                }
+                
+                // Prepare date string
+                let dateStr = '';
+                if (zone.startDate || zone.endDate || zone.date) {
+                    if (zone.startDate && zone.endDate) {
+                        dateStr = `${getWeekDayString(zone.startDate)} - ${getWeekDayString(zone.endDate)}`;
+                    } else if (zone.startDate) {
+                        dateStr = getWeekDayString(zone.startDate);
+                    } else if (zone.date) {
+                        dateStr = getWeekDayString(zone.date);
+                    }
+                }
+
+                // Measure Text & Strategy
+                const metrics = this.ctx.measureText(zone.name);
+                const textWidth = metrics.width;
+                const padding = 5; // World units
+                const availableWidth = zone.width - (padding * 2);
+                
+                let drawOutside = false;
+                
+                // Logic: If text doesn't fit horizontally OR vertical space is too tight OR zone is generally small
+                // Scaled thresholds to adjust automatically
+                // We use world units now, so comparison is direct
+                const smallZoneThreshold = 40; // 40 world units
+                const totalTextHeight = dateStr ? (mainFontSize + dateFontSize + padding) : mainFontSize;
+                
+                if (textWidth > availableWidth || zone.width < smallZoneThreshold || zone.height < totalTextHeight) {
+                    drawOutside = true;
+                }
+
+                let labelX, labelY;
+
+                if (drawOutside) {
+                    // --- CALLOUT STYLE (Outside) ---
+                    // Fixed visual sizes relative to world now? 
+                    // If we want the *callout box* to scale with drawing, use simple numbers.
+                    // If we want callout box to be fixed screen size, we'd need / renderScale.
+                    // User asked for "fixed according to settings", usually implies World Scale for text.
+                    // So we scale everything in World Units.
+
+                    const lineLen = 15;
+                    const rightX = zone.x + zone.width;
+                    const midY = zone.y + (zone.height / 2);
+                    
+                    // Leader Line
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(rightX, midY);
+                    this.ctx.lineTo(rightX + lineLen, midY);
+                    this.ctx.strokeStyle = '#333'; 
+                    this.ctx.lineWidth = 1 / renderScale; // Keep hairline stroke
+                    this.ctx.stroke();
+
+                    // Text Position (Right of the line)
+                    labelX = rightX + lineLen + 5;
+                    labelY = midY; 
+                    
+                    this.ctx.textAlign = 'left';
+                    this.ctx.textBaseline = 'middle'; 
+
+                    // --- DRAW BACKGROUND BOX ---
+                    const paddingBox = 4;
+                    const maxTextW = Math.max(textWidth, dateStr ? this.ctx.measureText(dateStr).width : 0);
+                    const totalW = maxTextW + (paddingBox * 2);
+                    const totalH = totalTextHeight + (paddingBox * 2);
+
+                    const boxX = labelX - paddingBox;
+                    const boxY = midY - (totalH / 2);
+
+                    // Drop Shadow for Box
+                    this.ctx.shadowColor = "rgba(0,0,0,0.15)";
+                    this.ctx.shadowBlur = 6;
+                    this.ctx.shadowOffsetX = 2;
+                    this.ctx.shadowOffsetY = 2;
+
+                    // Message Box Background
+                    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+                    this.ctx.beginPath();
+                    // Rounded Rect
+                    const r = 4;
+                    this.ctx.moveTo(boxX + r, boxY);
+                    this.ctx.lineTo(boxX + totalW - r, boxY);
+                    this.ctx.quadraticCurveTo(boxX + totalW, boxY, boxX + totalW, boxY + r);
+                    this.ctx.lineTo(boxX + totalW, boxY + totalH - r);
+                    this.ctx.quadraticCurveTo(boxX + totalW, boxY + totalH, boxX + totalW - r, boxY + totalH);
+                    this.ctx.lineTo(boxX + r, boxY + totalH);
+                    this.ctx.quadraticCurveTo(boxX, boxY + totalH, boxX, boxY + totalH - r);
+                    this.ctx.lineTo(boxX, boxY + r);
+                    this.ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY);
+                    this.ctx.fill();
+                    
+                    // Border (Stroke) for Box - Optional
+                    this.ctx.shadowColor = "transparent"; 
+                    this.ctx.strokeStyle = '#cbd5e1'; 
+                    this.ctx.lineWidth = 0.5 / renderScale; // Hairline border
+                    this.ctx.stroke();
+
+                    // --- DRAW TEXT ---
+                    this.ctx.fillStyle = '#0f172a'; 
+                    this.ctx.shadowBlur = 0; 
+
+                    if (dateStr) {
+                         // Center the group of text vertically around the line
+                         this.ctx.fillText(zone.name, labelX, labelY - 6);
+                         
+                         this.ctx.fillStyle = '#64748b'; 
+                         this.ctx.font = `${dateFontSize}px Inter`;
+                         this.ctx.fillText(dateStr, labelX, labelY + 6);
+                    } else {
+                        this.ctx.fillText(zone.name, labelX, labelY);
+                    }
+
+                } else {
+                    // --- INTERNAL LABEL (Standard) ---
+                    if (zone.type === 'polygon') {
+                        labelX = zone.x + zone.width / 2;
+                        labelY = zone.y + zone.height / 2;
+                        this.ctx.textAlign = 'center';
+                        this.ctx.textBaseline = 'middle';
+                        
+                        if (dateStr) {
+                            this.ctx.fillText(zone.name, labelX, labelY - 7);
+                            this.ctx.font = `${dateFontSize}px Inter`;
+                            this.ctx.fillText(dateStr, labelX, labelY + 7);
+                        } else {
+                            this.ctx.fillText(zone.name, labelX, labelY);
+                        }
+                    } else {
+                        labelX = zone.x + 5;
+                        labelY = zone.y + 20;
+                        this.ctx.textAlign = 'left';
+                        this.ctx.textBaseline = 'alphabetic';
+                        
+                        this.ctx.fillText(zone.name, labelX, labelY);
+                        
+                        if (dateStr) {
+                            this.ctx.font = `${dateFontSize}px Inter`;
+                            this.ctx.fillText(dateStr, labelX, labelY + 12);
+                        }
+                    }
+                }
+                
+                // Reset text align & shadow
                 this.ctx.textAlign = 'left';
                 this.ctx.textBaseline = 'alphabetic';
-                
-                this.ctx.fillText(zone.name, labelX, labelY);
-                
-                if (dateStr) {
-                    this.ctx.font = `${10 / renderScale}px Inter`;
-                    this.ctx.fillText(dateStr, labelX, labelY + (12 / renderScale));
-                }
+                this.ctx.shadowBlur = 0;
             }
-            
-            // Reset text align
-            this.ctx.textAlign = 'left';
-            this.ctx.textBaseline = 'alphabetic';
-            this.ctx.shadowBlur = 0;
         }
 
         // Draw Connected Indicator (Checkmark)
@@ -2487,30 +2586,49 @@ class CanvasManager {
             }
 
             // Week Filter
-            if (filters.week) {
+            if ((filters.weeks && filters.weeks.length > 0) || filters.week) {
                 const zStart = zone.startDate || zone.date;
                 const zEnd = zone.endDate || zone.date;
                 
-                if (!zStart) return false;
-                
-                const weekStr = getWeekDayString(zStart); 
-                if (!weekStr) return false;
+                if (!zStart && !zEnd) return false; 
 
-                const weekPart = weekStr.split('-')[0].replace('W', ''); 
-                const weekNum = parseInt(weekPart, 10);
+                const startWeek = zStart ? getWeekNumber(new Date(zStart)) : null;
+                const endWeek = zEnd ? getWeekNumber(new Date(zEnd)) : startWeek;
                 
-                // Parse filter input: "42" or "42-45"
-                const filterInput = filters.week.trim();
+                const s = startWeek || endWeek;
+                const e = endWeek || startWeek;
                 
-                if (filterInput.includes('-')) {
-                    const [startW, endW] = filterInput.split('-').map(s => parseInt(s.trim(), 10));
-                    if (!isNaN(startW) && !isNaN(endW)) {
-                        if (weekNum < startW || weekNum > endW) return false;
+                if (!s) return false;
+
+                if (filters.weeks && filters.weeks.length > 0) {
+                    let match = false;
+                    const zMin = Math.min(s, e);
+                    const zMax = Math.max(s, e);
+                    
+                    for (const w of filters.weeks) {
+                        const weekNum = parseInt(w, 10);
+                        if (weekNum >= zMin && weekNum <= zMax) {
+                            match = true;
+                            break;
+                        }
                     }
-                } else {
-                    const targetW = parseInt(filterInput, 10);
-                    if (!isNaN(targetW)) {
-                        if (weekNum !== targetW) return false;
+                    if (!match) return false;
+                } else if (filters.week) {
+                    const filterInput = String(filters.week).trim();
+                    if (filterInput.includes('-')) {
+                        const [fStart, fEnd] = filterInput.split('-').map(str => parseInt(str.trim(), 10));
+                        if (!isNaN(fStart) && !isNaN(fEnd)) {
+                            const zMin = Math.min(s, e);
+                            const zMax = Math.max(s, e);
+                            if (!(zMin <= fEnd && fStart <= zMax)) return false;
+                        }
+                    } else {
+                        const targetW = parseInt(filterInput, 10);
+                        if (!isNaN(targetW)) {
+                             const zMin = Math.min(s, e);
+                             const zMax = Math.max(s, e);
+                             if (targetW < zMin || targetW > zMax) return false;
+                        }
                     }
                 }
             }
@@ -2569,7 +2687,7 @@ class CanvasManager {
         }
     }
 
-    exportPdf() {
+    exportPdf(quality = 0.8, filename = 'icoordinator-export') {
         if (!this.backgroundImage) {
             alert(this.uiManager.t('uploadLayoutPrompt'));
             return;
@@ -2582,54 +2700,134 @@ class CanvasManager {
         const savedOffsetY = this.offsetY;
         const savedCanvas = this.canvas;
 
-        try {
-            const { jsPDF } = window.jspdf;
-            
-            // Create a temporary canvas with the full size of the background
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = this.backgroundImage.width;
-            tempCanvas.height = this.backgroundImage.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            
-            // Swap to temp context and full scale
-            this.ctx = tempCtx;
-            this.canvas = tempCanvas;
-            this.scale = 1;
-            this.offsetX = 0;
-            this.offsetY = 0;
-            
-            // Draw everything
-            // Pass a flag to indicate export mode, so we can adjust font sizes
-            this.draw(true);
+        const performExport = async () => {
+             try {
+                const { jsPDF } = window.jspdf;
+                
+                // Create a temporary canvas with the full size of the background
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.backgroundImage.width;
+                tempCanvas.height = this.backgroundImage.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // Swap to temp context and full scale
+                this.ctx = tempCtx;
+                this.canvas = tempCanvas;
+                this.scale = 1;
+                this.offsetX = 0;
+                this.offsetY = 0;
+                
+                // Draw everything
+                // Pass a flag to indicate export mode, so we can adjust font sizes
+                this.draw(true);
 
-            // Draw Legend (Top Left)
-            this.drawLegend(tempCtx);
-            
-            // Generate PDF
-            const imgData = tempCanvas.toDataURL('image/jpeg', 0.8);
-            const orientation = tempCanvas.width > tempCanvas.height ? 'l' : 'p';
-            
-            const doc = new jsPDF({
-                orientation: orientation,
-                unit: 'px',
-                format: [tempCanvas.width, tempCanvas.height]
-            });
-            
-            doc.addImage(imgData, 'JPEG', 0, 0, tempCanvas.width, tempCanvas.height);
-            doc.save('icoordinator-export.pdf');
-            
-        } catch (e) {
-            console.error("PDF Export failed:", e);
-            alert("PDF Export failed. See console for details.");
-        } finally {
-            // Restore state
-            this.ctx = savedCtx;
-            this.canvas = savedCanvas;
-            this.scale = savedScale;
-            this.offsetX = savedOffsetX;
-            this.offsetY = savedOffsetY;
-            this.draw();
-        }
+                // Draw Legend (Top Left)
+                this.drawLegend(tempCtx);
+
+                // Draw Week Filter (Top Right)
+                this.drawWeekFilter(tempCtx);
+                
+                // Generate PDF
+                const imgData = tempCanvas.toDataURL('image/jpeg', quality);
+                const orientation = tempCanvas.width > tempCanvas.height ? 'l' : 'p';
+                
+                const doc = new jsPDF({
+                    orientation: orientation,
+                    unit: 'px',
+                    format: [tempCanvas.width, tempCanvas.height]
+                });
+                
+                doc.addImage(imgData, 'JPEG', 0, 0, tempCanvas.width, tempCanvas.height);
+
+                // Ensure filename ends with .pdf
+                if (!filename.toLowerCase().endsWith('.pdf')) {
+                    filename += '.pdf';
+                }
+
+                // Try File System Access API first
+                if (window.showSaveFilePicker) {
+                    try {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: filename,
+                            types: [{
+                                description: 'PDF Document',
+                                accept: {'application/pdf': ['.pdf']},
+                            }],
+                        });
+                        const writable = await handle.createWritable();
+                        const pdfBlob = doc.output('blob');
+                        await writable.write(pdfBlob);
+                        await writable.close();
+                        return; // Success
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            console.error("File System Access API failed, falling back to download", err);
+                        } else {
+                            // User cancelled, do nothing
+                            return; 
+                        }
+                    }
+                }
+                
+                doc.save(filename);
+                
+            } catch (e) {
+                console.error("PDF Export failed:", e);
+                alert("PDF Export failed. See console for details.");
+            } finally {
+                // Restore state
+                this.ctx = savedCtx;
+                this.canvas = savedCanvas;
+                this.scale = savedScale;
+                this.offsetX = savedOffsetX;
+                this.offsetY = savedOffsetY;
+                this.draw();
+            }
+        };
+
+        performExport();
+    }
+
+    drawWeekFilter(ctx) {
+        if (!this.uiManager.elements.dateRangeText) return;
+        
+        const text = this.uiManager.elements.dateRangeText.textContent;
+        // Don't draw if default or empty
+        if (!text || text === '--') return;
+
+        const padding = 20;
+        const fontSize = 24;
+        
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        const textWidth = ctx.measureText(text).width;
+        
+        // Approximate icon width since we can't easily draw the material icon on canvas without loading it as image
+        // We'll just draw the text clearly.
+        const width = textWidth + padding * 2;
+        const height = fontSize + padding * 2;
+        
+        // Position Top Right
+        // 20px from right edge
+        const x = this.canvas.width - width - 20; 
+        const y = 20; // Top aligned with legend
+
+        // Draw Background
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height); // Add border
+        ctx.restore();
+
+        // Draw Text
+        ctx.fillStyle = '#1E293B'; // --text-main
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x + width/2, y + height/2);
     }
 
     drawLegend(ctx) {

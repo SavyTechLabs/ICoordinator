@@ -5,6 +5,7 @@
 
 class DataManager {
     constructor() {
+        this.appVersion = "v.1.1";
         this.state = {
             projectInfo: {
                 name: "Nytt Projekt",
@@ -30,6 +31,10 @@ class DataManager {
             language: 'sv', // 'sv' or 'en'
             zoneNameMode: 'activity', // 'activity' or 'manual'
             
+            projectSettings: {
+                baseFontSize: 14
+            },
+
             // Filters
             filters: {
                 text: '',
@@ -283,6 +288,15 @@ class DataManager {
         this.setState({ statuses: newStatuses });
     }
 
+    updateProjectSettings(settings) {
+        this.setState({
+            projectSettings: {
+                ...this.state.projectSettings,
+                ...settings
+            }
+        });
+    }
+
     // --- Persistence ---
 
     saveToStorage() {
@@ -385,15 +399,41 @@ class DataManager {
 
     // --- Import/Export ---
 
-    exportProject(filename = "icoordinator_project.json") {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
+    async exportProject(filename = "icoordinator_project") {
+        const jsonString = JSON.stringify(this.state, null, 2);
         
         // Ensure extension
         if (!filename.toLowerCase().endsWith('.json')) {
             filename += '.json';
         }
+
+        // Use File System Access API if available
+        if (window.showSaveFilePicker) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: filename,
+                    types: [{
+                        description: 'JSON Project File',
+                        accept: {'application/json': ['.json']},
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(jsonString);
+                await writable.close();
+                return;
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error("File Save failed", err);
+                }
+                // If user cancels, we just return
+                return;
+            }
+        }
+
+        // Fallback for browsers that don't support File System Access API
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
         
         downloadAnchorNode.setAttribute("download", filename);
         document.body.appendChild(downloadAnchorNode);
