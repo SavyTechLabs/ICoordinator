@@ -2018,6 +2018,10 @@ class CanvasManager {
                 const mainFontSize = baseFontSize;
                 const dateFontSize = baseFontSize * 0.7; 
                 
+                // Dynamic spacing based on font size
+                const centerOffset = mainFontSize * 0.75; // Used for centering (approx 10px at 14pt)
+                const lineSpacing = mainFontSize * 1.6;   // Used for standard list (approx 22px at 14pt)
+                
                 this.ctx.font = `${mainFontSize}px Inter`;
                 
                 // Shadow for visibility
@@ -2044,7 +2048,7 @@ class CanvasManager {
                 // Measure Text & Strategy
                 const metrics = this.ctx.measureText(zone.name);
                 const textWidth = metrics.width;
-                const padding = 5; // World units
+                const padding = 10; // World units
                 const availableWidth = zone.width - (padding * 2);
                 
                 let drawOutside = false;
@@ -2131,11 +2135,11 @@ class CanvasManager {
 
                     if (dateStr) {
                          // Center the group of text vertically around the line
-                         this.ctx.fillText(zone.name, labelX, labelY - 6);
+                         this.ctx.fillText(zone.name, labelX, labelY - centerOffset);
                          
                          this.ctx.fillStyle = '#64748b'; 
                          this.ctx.font = `${dateFontSize}px Inter`;
-                         this.ctx.fillText(dateStr, labelX, labelY + 6);
+                         this.ctx.fillText(dateStr, labelX, labelY + centerOffset);
                     } else {
                         this.ctx.fillText(zone.name, labelX, labelY);
                     }
@@ -2149,9 +2153,9 @@ class CanvasManager {
                         this.ctx.textBaseline = 'middle';
                         
                         if (dateStr) {
-                            this.ctx.fillText(zone.name, labelX, labelY - 7);
+                            this.ctx.fillText(zone.name, labelX, labelY - centerOffset);
                             this.ctx.font = `${dateFontSize}px Inter`;
-                            this.ctx.fillText(dateStr, labelX, labelY + 7);
+                            this.ctx.fillText(dateStr, labelX, labelY + centerOffset);
                         } else {
                             this.ctx.fillText(zone.name, labelX, labelY);
                         }
@@ -2165,7 +2169,7 @@ class CanvasManager {
                         
                         if (dateStr) {
                             this.ctx.font = `${dateFontSize}px Inter`;
-                            this.ctx.fillText(dateStr, labelX, labelY + 12);
+                            this.ctx.fillText(dateStr, labelX, labelY + lineSpacing);
                         }
                     }
                 }
@@ -2839,13 +2843,25 @@ class CanvasManager {
         
         let items = [];
         let title = "";
-
+        
+        // Use visible zones to determine what to show in legend
+        const visibleZones = this.getVisibleZones();
+        const startIds = new Set();
+        
         if (state.viewMode === 'discipline') {
-            title = "Discipliner";
-            items = state.disciplines;
+            title = this.uiManager.t('disciplines');
+            // Collect visible disciplines
+            visibleZones.forEach(z => {
+                if (z.discipline) startIds.add(z.discipline);
+            });
+            items = state.disciplines.filter(d => startIds.has(d.id));
         } else {
-            title = "Status";
-            items = state.statuses;
+            title = this.uiManager.t('statuses');
+            // Collect visible statuses
+            visibleZones.forEach(z => {
+                if (z.status) startIds.add(z.status);
+            });
+            items = state.statuses.filter(s => startIds.has(s.id));
         }
 
         if (items.length === 0) return;
